@@ -6,7 +6,7 @@
           v-for="term in terminals"
           :key="term.id"
           :class="['terminal-tab', { active: term.id === activeTerminalId }]"
-          @click="activeTerminalId = term.id"
+          @click="switchTerminal(term.id)"
         >
           <span class="tab-label">终端 {{ term.index }}</span>
           <button class="tab-close" @click.stop="closeTerminal(term.id)">
@@ -31,12 +31,21 @@
         :ref="(el) => setTerminalRef(term.id, el as HTMLElement)"
         class="terminal-instance"
       ></div>
+      <div v-if="terminals.length === 0" class="terminal-empty">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <polyline points="4,17 10,11 4,5"/>
+          <line x1="12" y1="19" x2="20" y2="19"/>
+        </svg>
+        <p>点击 + 创建新终端</p>
+        <span>或按 Ctrl+` 快速打开</span>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { useEditorStore } from '../stores/editor'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import '@xterm/xterm/css/xterm.css'
@@ -47,8 +56,10 @@ interface TerminalEntry {
   terminal: Terminal
   fitAddon: FitAddon
   element: HTMLElement | null
+  initialized: boolean
 }
 
+const editorStore = useEditorStore()
 const terminals = ref<TerminalEntry[]>([])
 const activeTerminalId = ref<string>('')
 const terminalRefs = new Map<string, HTMLElement>()
@@ -60,23 +71,41 @@ function setTerminalRef(id: string, el: HTMLElement | null) {
   }
 }
 
+function getCwd(): string {
+  return editorStore.rootPath || process.cwd()
+}
+
 async function createTerminal() {
   terminalCounter++
   const id = `term-${Date.now()}`
   const index = terminalCounter
 
+  const entry: TerminalEntry = {
+    id,
+    index,
+    terminal: null!,
+    fitAddon: null!,
+    element: null,
+    initialized: false
+  }
+
+  terminals.value.push(entry)
+  activeTerminalId.value = id
+
   await nextTick()
 
   const element = terminalRefs.get(id)
   if (!element) {
-    // Retry after next tick
-    setTimeout(() => createTerminal(), 100)
+    console.error('[Terminal] Element not found for', id)
     return
   }
+
+  entry.element = element
 
   const terminal = new Terminal({
     fontSize: 13,
     fontFamily: "'SF Mono', 'Cascadia Code', 'Fira Code', monospace",
+    cursorBlink: true,
     theme: {
       background: '#0f172a',
       foreground: '#e2e8f0',
@@ -105,10 +134,20 @@ async function createTerminal() {
   terminal.loadAddon(fitAddon)
 
   terminal.open(element)
+
+  // Wait for element to be properly sized
+  await nextTick()
+  await new Promise(resolve => setTimeout(resolve, 50))
   fitAddon.fit()
 
   // Create terminal session in main process
-  const cwd = await window.mimo.terminal.create(id, process.cwd())
+  const cwd = getCwd()
+  await window.mimo.terminal.create(id, cwd)
+
+  // Write welcome message
+  terminal.writeln(`\x1b[36mMiMo Code Terminal\x1b[0m`)
+  terminal.writeln(`\x1b[90mWorking directory: ${cwd}\x1b[0m`)
+  terminal.writeln('')
 
   // Listen for output
   window.mimo.terminal.onOutput(id, (data: string) => {
@@ -117,7 +156,7 @@ async function createTerminal() {
 
   // Listen for exit
   window.mimo.terminal.onExit(id, (code: number) => {
-    terminal.write(`\r\n[Process exited with code ${code}]\r\n`)
+    terminal.writeln(`\r\n\x1b[31m[Process exited with code ${code}]\x1b[0m`)
   })
 
   // Send input to main process
@@ -127,21 +166,29 @@ async function createTerminal() {
 
   // Handle resize
   const resizeObserver = new ResizeObserver(() => {
-    fitAddon.fit()
-    window.mimo.terminal.resize(id, terminal.cols, terminal.rows)
+    if (element.offsetHeight > 0) {
+      fitAddon.fit()
+      window.mimo.terminal.resize(id, terminal.cols, terminal.rows)
+    }
   })
   resizeObserver.observe(element)
 
-  const entry: TerminalEntry = {
-    id,
-    index,
-    terminal,
-    fitAddon,
-    element
-  }
+  entry.terminal = terminal
+  entry.fitAddon = fitAddon
+  entry.initialized = true
 
-  terminals.value.push(entry)
+  terminal.focus()
+}
+
+function switchTerminal(id: string) {
   activeTerminalId.value = id
+  const entry = terminals.value.find(t => t.id === id)
+  if (entry?.terminal) {
+    nextTick(() => {
+      entry.fitAddon.fit()
+      entry.terminal.focus()
+    })
+  }
 }
 
 function closeTerminal(id: string) {
@@ -149,7 +196,9 @@ function closeTerminal(id: string) {
   if (index === -1) return
 
   const entry = terminals.value[index]
-  entry.terminal.dispose()
+  if (entry.terminal) {
+    entry.terminal.dispose()
+  }
   window.mimo.terminal.destroy(id)
 
   terminals.value.splice(index, 1)
@@ -165,7 +214,9 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   for (const entry of terminals.value) {
-    entry.terminal.dispose()
+    if (entry.terminal) {
+      entry.terminal.dispose()
+    }
     window.mimo.terminal.destroy(entry.id)
   }
 })
@@ -275,5 +326,33 @@ onBeforeUnmount(() => {
   right: 0;
   bottom: 0;
   padding: 8px;
+}
+
+.terminal-empty {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #475569;
+}
+
+.terminal-empty svg {
+  opacity: 0.5;
+}
+
+.terminal-empty p {
+  font-size: 14px;
+  color: #64748b;
+}
+
+.terminal-empty span {
+  font-size: 12px;
+  color: #475569;
 }
 </style>

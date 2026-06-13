@@ -37,6 +37,20 @@
             <polyline points="7,3 7,8 15,8"/>
           </svg>
         </button>
+        <button class="icon-btn" @click="exportChat" title="导出会话">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+            <polyline points="7,10 12,15 17,10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        </button>
+        <button class="icon-btn" @click="importChat" title="导入会话">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+            <polyline points="17,8 12,3 7,8"/>
+            <line x1="12" y1="3" x2="12" y2="15"/>
+          </svg>
+        </button>
         <button class="icon-btn" @click="chatStore.clear()" title="清空对话">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14"/>
@@ -64,6 +78,13 @@
         >
           <span class="session-title">{{ session.title }}</span>
           <span class="session-time">{{ formatTime(session.updatedAt) }}</span>
+          <button class="fork-btn" @click.stop="forkSession(session.id)" title="分叉会话">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="18" cy="18" r="3"/>
+              <circle cx="6" cy="6" r="3"/>
+              <path d="M6 21V9a9 9 0 009 9"/>
+            </svg>
+          </button>
           <button class="delete-btn" @click.stop="deleteSession(session.id)">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6L6 18M6 6l12 12"/>
@@ -560,17 +581,56 @@ function executeCommand(cmd: SlashCommand) {
 }
 
 function exportChat() {
-  const content = chatStore.messages
-    .map(m => `### ${m.role === 'user' ? '用户' : '助手'}\n\n${m.content}`)
-    .join('\n\n---\n\n')
+  const data = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    sessionId: currentSessionId.value,
+    messages: chatStore.messages.map(m => ({
+      role: m.role,
+      content: m.content,
+      timestamp: m.timestamp
+    }))
+  }
 
-  const blob = new Blob([content], { type: 'text/markdown' })
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = `chat-export-${Date.now()}.md`
+  a.download = `chat-export-${Date.now()}.json`
   a.click()
   URL.revokeObjectURL(url)
+}
+
+function importChat() {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = '.json'
+  input.onchange = async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0]
+    if (!file) return
+
+    try {
+      const text = await file.text()
+      const data = JSON.parse(text)
+      
+      if (data.messages && Array.isArray(data.messages)) {
+        chatStore.clear()
+        data.messages.forEach((m: { role: string; content: string; timestamp: number }) => {
+          chatStore.messages.push({
+            id: `msg-${m.timestamp || Date.now()}`,
+            role: m.role as 'user' | 'assistant',
+            content: m.content,
+            parts: [{ type: 'text', content: m.content }],
+            accumulatedText: m.content,
+            timestamp: m.timestamp || Date.now()
+          })
+        })
+      }
+    } catch (err) {
+      console.error('Failed to import chat:', err)
+    }
+  }
+  input.click()
 }
 
 // Sync working directory to chat
@@ -640,6 +700,26 @@ async function deleteSession(id: string) {
     await loadSessionList()
   } catch (err) {
     console.error('Failed to delete session:', err)
+  }
+}
+
+async function forkSession(id: string) {
+  try {
+    const session = await window.mimo.sessions.load(id)
+    if (session) {
+      // Create a new session with the same messages but new ID
+      const newSession = {
+        ...session,
+        id: `session-${Date.now()}`,
+        title: `${session.title} (分叉)`,
+        createdAt: Date.now(),
+        updatedAt: Date.now()
+      }
+      await window.mimo.sessions.save(newSession)
+      await loadSessionList()
+    }
+  } catch (err) {
+    console.error('Failed to fork session:', err)
   }
 }
 
@@ -1026,6 +1106,7 @@ watch(inputText, () => nextTick(autoResize))
   color: #64748b;
 }
 
+.fork-btn,
 .delete-btn {
   display: flex;
   align-items: center;
@@ -1041,8 +1122,14 @@ watch(inputText, () => nextTick(autoResize))
   transition: all 0.1s;
 }
 
+.session-item:hover .fork-btn,
 .session-item:hover .delete-btn {
   opacity: 1;
+}
+
+.fork-btn:hover {
+  color: #60a5fa;
+  background: rgba(96, 165, 250, 0.1);
 }
 
 .delete-btn:hover {
