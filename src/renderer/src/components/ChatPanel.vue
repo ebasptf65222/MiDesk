@@ -99,7 +99,7 @@
         <div class="message-body">
           <template v-for="(part, idx) in msg.parts" :key="idx">
             <!-- Thinking block -->
-            <div v-if="part.type === 'thinking'" class="thinking-block">
+            <div v-if="part.type === 'thinking' && showThinking" class="thinking-block">
               <div class="thinking-header" @click="toggleThinking(idx)">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                   <circle cx="12" cy="12" r="10"/>
@@ -157,7 +157,36 @@
       </div>
     </div>
 
-    <div class="chat-input-area">
+    <div
+      class="chat-input-area"
+      @dragenter="handleDragEnter"
+      @dragover="handleDragOver"
+      @dragleave="handleDragLeave"
+      @drop="handleDrop"
+      :class="{ dragging: isDragging }"
+    >
+      <!-- Pending Images Preview -->
+      <div class="pending-images" v-if="pendingImages.length > 0">
+        <div v-for="(img, index) in pendingImages" :key="index" class="pending-image">
+          <img :src="img.preview" :alt="img.name" />
+          <button class="remove-image" @click="removePendingImage(index)">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Drag Overlay -->
+      <div class="drag-overlay" v-if="isDragging">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+          <polyline points="17,8 12,3 7,8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <span>拖放图片到这里</span>
+      </div>
+
       <!-- File Reference Menu -->
       <div class="file-menu" v-if="showFileMenu">
         <div class="file-menu-header">
@@ -230,8 +259,8 @@
           <button
             v-else
             class="send-btn"
-            :disabled="!inputText.trim()"
-            @click="handleSend"
+            :disabled="!inputText.trim() && pendingImages.length === 0"
+            @click="handleSendWithImages"
             title="发送"
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -294,8 +323,17 @@ const selectedFileIndex = ref(0)
 const fileSearchLoading = ref(false)
 let fileSearchDebounce: ReturnType<typeof setTimeout> | null = null
 
+// Image drag & drop state
+const isDragging = ref(false)
+const pendingImages = ref<Array<{ name: string; data: string; preview: string }>>([])
+
+// Display toggles
+const showThinking = ref(true)
+const showToolDetails = ref(false)
+
 const builtInCommands: SlashCommand[] = [
   { name: '/help', description: '显示帮助信息', action: 'help' },
+  { name: '/new', description: '开始新会话', action: 'new' },
   { name: '/clear', description: '清空当前对话', action: 'clear' },
   { name: '/undo', description: '撤销上次操作 (基于 Git)', action: 'undo' },
   { name: '/redo', description: '重做上次撤销的操作', action: 'redo' },
@@ -304,6 +342,11 @@ const builtInCommands: SlashCommand[] = [
   { name: '/export', description: '导出对话为 Markdown', action: 'export' },
   { name: '/stats', description: '查看 Token 统计', action: 'stats' },
   { name: '/compact', description: '压缩会话上下文', action: 'compact' },
+  { name: '/thinking', description: '切换思考块显示/隐藏', action: 'thinking' },
+  { name: '/details', description: '切换工具执行详情显示', action: 'details' },
+  { name: '/sessions', description: '列出并切换会话', action: 'sessions' },
+  { name: '/themes', description: '切换主题', action: 'themes' },
+  { name: '/init', description: '创建 AGENTS.md 规则文件', action: 'init' },
   { name: '/plan', description: '创建实现计划 - 使用 compose:plan 技能', action: 'compose:plan' },
   { name: '/debug', description: '系统化调试 - 使用 compose:debug 技能', action: 'compose:debug' },
   { name: '/tdd', description: '测试驱动开发 - 使用 compose:tdd 技能', action: 'compose:tdd' },
@@ -429,8 +472,10 @@ function executeCommand(cmd: SlashCommand) {
   }
 
   switch (cmd.action) {
+    case 'new':
     case 'clear':
       chatStore.clear()
+      currentSessionId.value = null
       break
     case 'undo':
       chatStore.undo()
@@ -471,6 +516,43 @@ function executeCommand(cmd: SlashCommand) {
         id: `msg-${Date.now()}`,
         role: 'assistant',
         content: `## 会话统计\n\n- 消息数量: ${chatStore.messages.length}\n- 当前会话: ${currentSessionId.value || '新会话'}`,
+        timestamp: Date.now()
+      })
+      break
+    case 'thinking':
+      showThinking.value = !showThinking.value
+      chatStore.messages.push({
+        id: `msg-${Date.now()}`,
+        role: 'assistant',
+        content: `思考块显示: **${showThinking.value ? '开启' : '关闭'}**`,
+        timestamp: Date.now()
+      })
+      break
+    case 'details':
+      showToolDetails.value = !showToolDetails.value
+      chatStore.messages.push({
+        id: `msg-${Date.now()}`,
+        role: 'assistant',
+        content: `工具详情显示: **${showToolDetails.value ? '开启' : '关闭'}**`,
+        timestamp: Date.now()
+      })
+      break
+    case 'sessions':
+      showSessions.value = !showSessions.value
+      break
+    case 'themes':
+      chatStore.messages.push({
+        id: `msg-${Date.now()}`,
+        role: 'assistant',
+        content: '主题切换功能请使用 **Ctrl+,** 打开设置面板',
+        timestamp: Date.now()
+      })
+      break
+    case 'init':
+      chatStore.messages.push({
+        id: `msg-${Date.now()}`,
+        role: 'assistant',
+        content: 'AGENTS.md 规则文件初始化功能开发中...',
         timestamp: Date.now()
       })
       break
@@ -613,6 +695,64 @@ async function loadCustomCommands() {
   }
 }
 
+// Image drag & drop handlers
+function handleDragEnter(e: DragEvent) {
+  e.preventDefault()
+  isDragging.value = true
+}
+
+function handleDragOver(e: DragEvent) {
+  e.preventDefault()
+  isDragging.value = true
+}
+
+function handleDragLeave(e: DragEvent) {
+  e.preventDefault()
+  isDragging.value = false
+}
+
+async function handleDrop(e: DragEvent) {
+  e.preventDefault()
+  isDragging.value = false
+
+  const files = e.dataTransfer?.files
+  if (!files) return
+
+  for (const file of Array.from(files)) {
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const dataUrl = event.target?.result as string
+        pendingImages.value.push({
+          name: file.name,
+          data: dataUrl,
+          preview: dataUrl
+        })
+      }
+      reader.readAsDataURL(file)
+    }
+  }
+}
+
+function removePendingImage(index: number) {
+  pendingImages.value.splice(index, 1)
+}
+
+async function handleSendWithImages() {
+  if (!inputText.value.trim() && pendingImages.value.length === 0) return
+
+  let message = inputText.value
+  if (pendingImages.value.length > 0) {
+    const imageRefs = pendingImages.value.map((img, i) => `[Image #${i + 1}] ${img.name}`).join('\n')
+    message = `${imageRefs}\n\n${message}`.trim()
+  }
+
+  chatStore.send(message)
+  inputText.value = ''
+  pendingImages.value = []
+  nextTick(() => autoResize())
+}
+
 function handleKeydown(e: KeyboardEvent) {
   // File menu navigation
   if (showFileMenu.value) {
@@ -668,9 +808,54 @@ function handleKeydown(e: KeyboardEvent) {
 
 function handleSend() {
   if (!inputText.value.trim()) return
+
+  // Check for ! shell command
+  if (inputText.value.startsWith('!')) {
+    const command = inputText.value.substring(1).trim()
+    if (command) {
+      executeShellCommand(command)
+      inputText.value = ''
+      nextTick(() => autoResize())
+      return
+    }
+  }
+
   chatStore.send(inputText.value)
   inputText.value = ''
   nextTick(() => autoResize())
+}
+
+async function executeShellCommand(command: string) {
+  const userMsg = {
+    id: `msg-${Date.now()}`,
+    role: 'user' as const,
+    parts: [{ type: 'text' as const, content: `!${command}` }],
+    content: `!${command}`,
+    accumulatedText: `!${command}`,
+    timestamp: Date.now()
+  }
+  chatStore.messages.push(userMsg)
+
+  const assistantMsg = {
+    id: `msg-${Date.now()}-assistant`,
+    role: 'assistant' as const,
+    parts: [{ type: 'text' as const, content: '' }],
+    content: '',
+    accumulatedText: '',
+    timestamp: Date.now()
+  }
+  chatStore.messages.push(assistantMsg)
+
+  try {
+    const result = await window.mimo.terminal.execute(command, editorStore.rootPath || process.cwd())
+    assistantMsg.accumulatedText = result || '命令执行完成'
+    assistantMsg.content = assistantMsg.accumulatedText
+    assistantMsg.parts[0].content = assistantMsg.accumulatedText
+  } catch (err) {
+    assistantMsg.accumulatedText = `命令执行失败: ${err}`
+    assistantMsg.content = assistantMsg.accumulatedText
+    assistantMsg.parts[0].content = assistantMsg.accumulatedText
+  }
 }
 
 function autoResize() {
@@ -1245,6 +1430,74 @@ watch(inputText, () => nextTick(autoResize))
   text-align: center;
   font-size: 12px;
   color: #64748b;
+}
+
+/* Pending Images */
+.pending-images {
+  display: flex;
+  gap: 8px;
+  padding: 8px 0;
+  overflow-x: auto;
+}
+
+.pending-image {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid #334155;
+}
+
+.pending-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.remove-image {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.9);
+  border: none;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.pending-image:hover .remove-image {
+  opacity: 1;
+}
+
+/* Drag Overlay */
+.drag-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(59, 130, 246, 0.1);
+  border: 2px dashed #3b82f6;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: #3b82f6;
+  font-size: 13px;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.chat-input-area.dragging {
+  border-color: #3b82f6;
 }
 
 .input-wrapper {

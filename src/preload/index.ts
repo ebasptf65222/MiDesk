@@ -47,6 +47,7 @@ const mimoAPI = {
     write: (id: string, data: string) => electronAPI.ipcRenderer.invoke('mimo:terminal:write', id, data),
     resize: (id: string, cols: number, rows: number) => electronAPI.ipcRenderer.invoke('mimo:terminal:resize', id, cols, rows),
     destroy: (id: string) => electronAPI.ipcRenderer.invoke('mimo:terminal:destroy', id),
+    execute: (command: string, cwd: string) => electronAPI.ipcRenderer.invoke('mimo:terminal:execute', command, cwd),
     onOutput: (id: string, callback: (data: string) => void) => {
       const handler = (_event: Electron.IpcRendererEvent, outputId: string, data: string) => {
         if (outputId === id) callback(data)
