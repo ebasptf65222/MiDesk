@@ -23,6 +23,8 @@ export const useChatStore = defineStore('chat', () => {
   const currentMessage = ref<Message | null>(null)
   const mode = ref<AgentMode>('build')
 
+  const MAX_MESSAGES = 1000 // 限制最大消息数量
+
   let removeChunkListener: (() => void) | null = null
   let removeDoneListener: (() => void) | null = null
 
@@ -34,6 +36,13 @@ export const useChatStore = defineStore('chat', () => {
     removeDoneListener = null
     isStreaming.value = false
     currentMessage.value = null
+  }
+
+  // 限制消息数量，防止内存无限增长
+  function limitMessages() {
+    if (messages.value.length > MAX_MESSAGES) {
+      messages.value = messages.value.slice(-MAX_MESSAGES)
+    }
   }
 
   async function setMode(newMode: AgentMode) {
@@ -116,6 +125,7 @@ export const useChatStore = defineStore('chat', () => {
     // Listen for done event
     removeDoneListener = window.mimo.chat.onDone(() => {
       console.log('[ChatStore] done received')
+      limitMessages()
       cleanup()
     })
 
@@ -196,6 +206,7 @@ export const useChatStore = defineStore('chat', () => {
     })
 
     removeDoneListener = window.mimo.chat.onDone(() => {
+      limitMessages()
       cleanup()
     })
 
@@ -250,6 +261,7 @@ export const useChatStore = defineStore('chat', () => {
     })
 
     removeDoneListener = window.mimo.chat.onDone(() => {
+      limitMessages()
       cleanup()
     })
 

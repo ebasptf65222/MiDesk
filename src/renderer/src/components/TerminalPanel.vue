@@ -60,6 +60,9 @@ interface TerminalEntry {
   element: HTMLElement | null
   initialized: boolean
   handleKeyDown?: (e: KeyboardEvent) => void
+  resizeObserver?: ResizeObserver
+  removeOutputListener?: () => void
+  removeExitListener?: () => void
 }
 
 const editorStore = useEditorStore()
@@ -173,12 +176,12 @@ async function createTerminal() {
   terminal.writeln('')
 
   // Listen for output
-  window.mimo.terminal.onOutput(id, (data: string) => {
+  entry.removeOutputListener = window.mimo.terminal.onOutput(id, (data: string) => {
     terminal.write(data)
   })
 
   // Listen for exit
-  window.mimo.terminal.onExit(id, (code: number) => {
+  entry.removeExitListener = window.mimo.terminal.onExit(id, (code: number) => {
     terminal.writeln(`\r\n\x1b[31m[Process exited with code ${code}]\x1b[0m`)
   })
 
@@ -196,6 +199,7 @@ async function createTerminal() {
     }
   })
   resizeObserver.observe(element)
+  entry.resizeObserver = resizeObserver
 
   entry.terminal = terminal
   entry.fitAddon = fitAddon
@@ -233,12 +237,31 @@ function closeTerminal(id: string) {
   if (index === -1) return
 
   const entry = terminals.value[index]
+  
+  // Disconnect ResizeObserver
+  if (entry.resizeObserver) {
+    entry.resizeObserver.disconnect()
+  }
+  
+  // Remove terminal and its event listeners
   if (entry.terminal) {
     entry.terminal.dispose()
   }
+  
+  // Remove keydown listener
   if (entry.handleKeyDown) {
     document.removeEventListener('keydown', entry.handleKeyDown, true)
   }
+  
+  // Remove IPC listeners
+  if (entry.removeOutputListener) {
+    entry.removeOutputListener()
+  }
+  if (entry.removeExitListener) {
+    entry.removeExitListener()
+  }
+  
+  // Destroy backend process
   window.mimo.terminal.destroy(id)
 
   terminals.value.splice(index, 1)
@@ -263,9 +286,30 @@ watch(activeTerminalId, () => {
 
 onBeforeUnmount(() => {
   for (const entry of terminals.value) {
+    // Disconnect ResizeObserver
+    if (entry.resizeObserver) {
+      entry.resizeObserver.disconnect()
+    }
+    
+    // Remove terminal and its event listeners
     if (entry.terminal) {
       entry.terminal.dispose()
     }
+    
+    // Remove keydown listener
+    if (entry.handleKeyDown) {
+      document.removeEventListener('keydown', entry.handleKeyDown, true)
+    }
+    
+    // Remove IPC listeners
+    if (entry.outputListener) {
+      window.mimo.terminal.removeOutputListener(entry.id, entry.outputListener)
+    }
+    if (entry.exitListener) {
+      window.mimo.terminal.removeExitListener(entry.id, entry.exitListener)
+    }
+    
+    // Destroy backend process
     window.mimo.terminal.destroy(entry.id)
   }
 })

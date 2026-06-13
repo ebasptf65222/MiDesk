@@ -113,9 +113,14 @@ export function registerChatIPC(): void {
         proc.stdin?.end()
 
         let buffer = ''
+        const MAX_BUFFER_SIZE = 1024 * 1024 // 1MB buffer limit
 
         proc.stdout?.on('data', (data: Buffer) => {
           buffer += data.toString()
+          // Prevent buffer from growing indefinitely
+          if (buffer.length > MAX_BUFFER_SIZE) {
+            buffer = buffer.slice(-MAX_BUFFER_SIZE / 2)
+          }
           const lines = buffer.split('\n')
           buffer = lines.pop() || ''
 
@@ -208,8 +213,12 @@ export function registerChatIPC(): void {
         proc.stdin?.end()
 
         let buffer = ''
+        const MAX_BUFFER_SIZE = 1024 * 1024 // 1MB buffer limit
         proc.stdout?.on('data', (data: Buffer) => {
           buffer += data.toString()
+          if (buffer.length > MAX_BUFFER_SIZE) {
+            buffer = buffer.slice(-MAX_BUFFER_SIZE / 2)
+          }
           const lines = buffer.split('\n')
           buffer = lines.pop() || ''
           for (const line of lines) {
@@ -263,8 +272,12 @@ export function registerChatIPC(): void {
         proc.stdin?.end()
 
         let buffer = ''
+        const MAX_BUFFER_SIZE = 1024 * 1024 // 1MB buffer limit
         proc.stdout?.on('data', (data: Buffer) => {
           buffer += data.toString()
+          if (buffer.length > MAX_BUFFER_SIZE) {
+            buffer = buffer.slice(-MAX_BUFFER_SIZE / 2)
+          }
           const lines = buffer.split('\n')
           buffer = lines.pop() || ''
           for (const line of lines) {

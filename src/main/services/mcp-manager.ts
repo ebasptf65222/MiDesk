@@ -24,7 +24,11 @@ interface McpConnection {
   process: ChildProcess
   tools: McpTool[]
   ready: boolean
+  stdoutHandler?: (data: Buffer) => void
+  stderrHandler?: (data: Buffer) => void
 }
+
+const MAX_BUFFER_SIZE = 1024 * 1024 // 1MB
 
 const CONFIG_FILE = path.join(os.homedir(), '.mimo-desktop', 'mcp-servers.json')
 
@@ -119,8 +123,12 @@ export class McpManager {
       proc.stdin?.write(JSON.stringify(initRequest) + '\n')
 
       let buffer = ''
-      proc.stdout?.on('data', (data: Buffer) => {
+      const stdoutHandler = (data: Buffer) => {
         buffer += data.toString()
+        // Prevent buffer from growing indefinitely
+        if (buffer.length > MAX_BUFFER_SIZE) {
+          buffer = buffer.slice(-MAX_BUFFER_SIZE / 2)
+        }
         const lines = buffer.split('\n')
         buffer = lines.pop() || ''
 
@@ -139,11 +147,17 @@ export class McpManager {
             // Ignore parse errors
           }
         }
-      })
+      }
 
-      proc.stderr?.on('data', (data: Buffer) => {
+      const stderrHandler = (data: Buffer) => {
         console.log(`[MCP] ${server.name} stderr:`, data.toString().substring(0, 200))
-      })
+      }
+
+      connection.stdoutHandler = stdoutHandler
+      connection.stderrHandler = stderrHandler
+
+      proc.stdout?.on('data', stdoutHandler)
+      proc.stderr?.on('data', stderrHandler)
 
       proc.on('close', () => {
         this.connections.delete(id)
@@ -169,6 +183,14 @@ export class McpManager {
   disconnect(id: string): void {
     const connection = this.connections.get(id)
     if (connection) {
+      // Remove event listeners to prevent memory leaks
+      if (connection.stdoutHandler) {
+        connection.process.stdout?.removeListener('data', connection.stdoutHandler)
+      }
+      if (connection.stderrHandler) {
+        connection.process.stderr?.removeListener('data', connection.stderrHandler)
+      }
+      connection.process.removeAllListeners()
       connection.process.kill()
       this.connections.delete(id)
     }
@@ -194,6 +216,7 @@ export class McpManager {
               const response = JSON.parse(data.toString().split('\n')[0])
               if (response.id === request.id) {
                 connection.process.stdout?.removeListener('data', handler)
+                clearTimeout(timeout)
                 resolve(response.result)
               }
             } catch {
@@ -201,7 +224,10 @@ export class McpManager {
             }
           }
           connection.process.stdout?.on('data', handler)
-          setTimeout(() => resolve({ error: 'Timeout' }), 30000)
+          const timeout = setTimeout(() => {
+            connection.process.stdout?.removeListener('data', handler)
+            resolve({ error: 'Timeout' })
+          }, 30000)
         })
       }
     }

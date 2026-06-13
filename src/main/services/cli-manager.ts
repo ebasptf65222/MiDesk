@@ -6,11 +6,13 @@ export interface CLISession {
   id: string
   process: ChildProcess
   cwd: string
+  timeout?: NodeJS.Timeout
 }
 
 export class CLIManager extends EventEmitter {
   private sessions: Map<string, CLISession> = new Map()
   private activeProcess: ChildProcess | null = null
+  private readonly SESSION_TIMEOUT = 5 * 60 * 1000 // 5 minutes timeout
 
   createSession(id: string, cwd: string): CLISession {
     if (this.sessions.has(id)) {
@@ -26,6 +28,13 @@ export class CLIManager extends EventEmitter {
     })
 
     const session: CLISession = { id, process: proc, cwd }
+    
+    // Set timeout to auto-destroy session
+    session.timeout = setTimeout(() => {
+      console.log(`[CLIManager] Session ${id} timed out, destroying...`)
+      this.destroySession(id)
+    }, this.SESSION_TIMEOUT)
+    
     this.sessions.set(id, session)
 
     proc.stdout?.on('data', (data: Buffer) => {
@@ -38,7 +47,7 @@ export class CLIManager extends EventEmitter {
 
     proc.on('close', (code) => {
       this.emit('exit', id, code)
-      this.sessions.delete(id)
+      this.destroySession(id)
     })
 
     return session
@@ -62,6 +71,10 @@ export class CLIManager extends EventEmitter {
   destroySession(id: string): void {
     const session = this.sessions.get(id)
     if (session) {
+      // Clear timeout to prevent memory leak
+      if (session.timeout) {
+        clearTimeout(session.timeout)
+      }
       session.process.kill()
       this.sessions.delete(id)
     }
