@@ -9,16 +9,12 @@ export function registerTerminalIPC(): void {
     const session = terminalManager.createSession(id, cwd)
     const webContents = event.sender
 
-    session.process.stdout?.on('data', (data: Buffer) => {
-      webContents.send('mimo:terminal:output', id, data.toString('binary'))
+    session.process.onData((data: string) => {
+      webContents.send('mimo:terminal:output', id, data)
     })
 
-    session.process.stderr?.on('data', (data: Buffer) => {
-      webContents.send('mimo:terminal:output', id, data.toString('binary'))
-    })
-
-    session.process.on('close', (code) => {
-      webContents.send('mimo:terminal:exit', id, code)
+    session.process.onExit(({ exitCode }) => {
+      webContents.send('mimo:terminal:exit', id, exitCode)
     })
 
     return { id, shell: session.shell }
@@ -52,11 +48,11 @@ export function registerTerminalIPC(): void {
       let stderr = ''
 
       proc.stdout?.on('data', (data: Buffer) => {
-        stdout += data.toString()
+        stdout += data.toString('utf-8')
       })
 
       proc.stderr?.on('data', (data: Buffer) => {
-        stderr += data.toString()
+        stderr += data.toString('utf-8')
       })
 
       proc.on('close', (code) => {

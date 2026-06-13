@@ -1,9 +1,9 @@
-import { ChildProcess, spawn } from 'child_process'
+import * as pty from 'node-pty'
 import * as os from 'os'
 
 export interface TerminalSession {
   id: string
-  process: ChildProcess
+  process: pty.IPty
   shell: string
 }
 
@@ -16,11 +16,12 @@ export class TerminalManager {
     }
 
     const shell = this.getDefaultShell()
-    const proc = spawn(shell, [], {
+    const proc = pty.spawn(shell, [], {
+      name: 'xterm-256color',
+      cols: 80,
+      rows: 24,
       cwd,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env },
-      shell: true
+      env: { ...process.env } as { [key: string]: string }
     })
 
     const session: TerminalSession = { id, process: proc, shell }
@@ -31,16 +32,23 @@ export class TerminalManager {
 
   writeToSession(id: string, data: string): void {
     const session = this.sessions.get(id)
-    if (session) {
-      session.process.stdin?.write(data)
+    if (session && session.process) {
+      try {
+        session.process.write(data)
+      } catch (err) {
+        console.error('[Terminal] Write error:', err)
+      }
     }
   }
 
   resizeSession(id: string, cols: number, rows: number): void {
     const session = this.sessions.get(id)
-    if (session && session.process.stdin) {
-      // Send resize escape sequence
-      session.process.stdin.write(`\x1b[8;${rows};${cols}t`)
+    if (session && session.process) {
+      try {
+        session.process.resize(cols, rows)
+      } catch (err) {
+        console.error('[Terminal] Resize error:', err)
+      }
     }
   }
 

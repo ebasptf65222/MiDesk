@@ -1,5 +1,5 @@
 <template>
-  <div class="terminal-panel">
+  <div class="terminal-panel" @click="focusActiveTerminal">
     <div class="terminal-header">
       <div class="terminal-tabs">
         <div
@@ -23,13 +23,14 @@
       </button>
     </div>
 
-    <div class="terminal-container">
+    <div class="terminal-container" @click="focusActiveTerminal">
       <div
         v-for="term in terminals"
         :key="term.id"
         v-show="term.id === activeTerminalId"
         :ref="(el) => setTerminalRef(term.id, el as HTMLElement)"
         class="terminal-instance"
+        @click="focusTerminal(term.id)"
       ></div>
       <div v-if="terminals.length === 0" class="terminal-empty">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -44,10 +45,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useEditorStore } from '../stores/editor'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
+import { ClipboardAddon } from '@xterm/addon-clipboard'
 import '@xterm/xterm/css/xterm.css'
 
 interface TerminalEntry {
@@ -57,6 +59,7 @@ interface TerminalEntry {
   fitAddon: FitAddon
   element: HTMLElement | null
   initialized: boolean
+  handleKeyDown?: (e: KeyboardEvent) => void
 }
 
 const editorStore = useEditorStore()
@@ -72,7 +75,7 @@ function setTerminalRef(id: string, el: HTMLElement | null) {
 }
 
 function getCwd(): string {
-  return editorStore.rootPath || process.cwd()
+  return editorStore.rootPath || ''
 }
 
 async function createTerminal() {
@@ -131,9 +134,29 @@ async function createTerminal() {
   })
 
   const fitAddon = new FitAddon()
+  const clipboardAddon = new ClipboardAddon()
   terminal.loadAddon(fitAddon)
+  terminal.loadAddon(clipboardAddon)
 
   terminal.open(element)
+
+  // Intercept Ctrl+V at document level to handle paste
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.ctrlKey && !e.altKey && !e.shiftKey && (e.key === 'v' || e.code === 'KeyV')) {
+      // Only handle when terminal is focused
+      if (element.contains(document.activeElement) || document.activeElement === element) {
+        e.preventDefault()
+        e.stopImmediatePropagation()
+        navigator.clipboard.readText().then((text) => {
+          if (text) {
+            window.mimo.terminal.write(id, text)
+          }
+        })
+      }
+    }
+  }
+  document.addEventListener('keydown', handleKeyDown, true)
+  entry.handleKeyDown = handleKeyDown
 
   // Wait for element to be properly sized
   await nextTick()
@@ -161,6 +184,7 @@ async function createTerminal() {
 
   // Send input to main process
   terminal.onData((data) => {
+    console.log('[Terminal] Input:', data)
     window.mimo.terminal.write(id, data)
   })
 
@@ -191,6 +215,19 @@ function switchTerminal(id: string) {
   }
 }
 
+function focusTerminal(id: string) {
+  const entry = terminals.value.find(t => t.id === id)
+  if (entry?.terminal) {
+    entry.terminal.focus()
+  }
+}
+
+function focusActiveTerminal() {
+  if (activeTerminalId.value) {
+    focusTerminal(activeTerminalId.value)
+  }
+}
+
 function closeTerminal(id: string) {
   const index = terminals.value.findIndex(t => t.id === id)
   if (index === -1) return
@@ -198,6 +235,9 @@ function closeTerminal(id: string) {
   const entry = terminals.value[index]
   if (entry.terminal) {
     entry.terminal.dispose()
+  }
+  if (entry.handleKeyDown) {
+    document.removeEventListener('keydown', entry.handleKeyDown, true)
   }
   window.mimo.terminal.destroy(id)
 
@@ -210,6 +250,15 @@ function closeTerminal(id: string) {
 
 onMounted(() => {
   createTerminal()
+})
+
+// Auto-focus terminal when panel becomes visible
+watch(activeTerminalId, () => {
+  nextTick(() => {
+    if (activeTerminalId.value) {
+      focusTerminal(activeTerminalId.value)
+    }
+  })
 })
 
 onBeforeUnmount(() => {
