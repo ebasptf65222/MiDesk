@@ -15,13 +15,13 @@ export interface Message {
   timestamp: number
 }
 
-export type AgentMode = 'plan' | 'act'
+export type AgentMode = 'build' | 'plan' | 'compose'
 
 export const useChatStore = defineStore('chat', () => {
   const messages = ref<Message[]>([])
   const isStreaming = ref(false)
   const currentMessage = ref<Message | null>(null)
-  const mode = ref<AgentMode>('act')
+  const mode = ref<AgentMode>('build')
 
   let removeChunkListener: (() => void) | null = null
   let removeDoneListener: (() => void) | null = null
@@ -36,8 +36,20 @@ export const useChatStore = defineStore('chat', () => {
     currentMessage.value = null
   }
 
-  function setMode(newMode: AgentMode) {
+  async function setMode(newMode: AgentMode) {
     mode.value = newMode
+    await window.mimo.chat.setAgent(newMode)
+  }
+
+  async function initMode() {
+    try {
+      const agent = await window.mimo.chat.getAgent()
+      if (agent) {
+        mode.value = agent as AgentMode
+      }
+    } catch {
+      mode.value = 'build'
+    }
   }
 
   async function send(message: string) {
@@ -46,13 +58,7 @@ export const useChatStore = defineStore('chat', () => {
       return
     }
 
-    // Add mode context to message
-    let fullMessage = message
-    if (mode.value === 'plan') {
-      fullMessage = `[MODE: PLAN] 你处于规划模式。只分析问题并制定计划，不要执行任何操作。用 markdown 列出步骤。\n\n${message}`
-    }
-
-    console.log('[ChatStore] sending:', fullMessage)
+    console.log('[ChatStore] sending:', message)
 
     const userMsg: Message = {
       id: `msg-${Date.now()}`,
@@ -147,5 +153,113 @@ export const useChatStore = defineStore('chat', () => {
     currentMessage.value = null
   }
 
-  return { messages, isStreaming, currentMessage, mode, send, stop, clear, setMode }
+  async function undo() {
+    if (isStreaming.value) return
+
+    const userMsg: Message = {
+      id: `msg-${Date.now()}`,
+      role: 'user',
+      parts: [{ type: 'text', content: '/undo' }],
+      content: '/undo',
+      accumulatedText: '/undo',
+      timestamp: Date.now()
+    }
+    messages.value.push(userMsg)
+
+    const assistantMsg: Message = {
+      id: `msg-${Date.now()}-assistant`,
+      role: 'assistant',
+      parts: [],
+      content: '',
+      accumulatedText: '',
+      timestamp: Date.now()
+    }
+    messages.value.push(assistantMsg)
+    currentMessage.value = assistantMsg
+
+    isStreaming.value = true
+
+    removeChunkListener = window.mimo.chat.onChunk((chunk: { type: string; content: string }) => {
+      if (currentMessage.value) {
+        if (chunk.type === 'text') {
+          currentMessage.value.accumulatedText += chunk.content
+          currentMessage.value.content = currentMessage.value.accumulatedText
+          const parts = currentMessage.value.parts
+          const lastPart = parts[parts.length - 1]
+          if (lastPart?.type === 'text') {
+            lastPart.content = currentMessage.value.accumulatedText
+          } else {
+            parts.push({ type: 'text', content: currentMessage.value.accumulatedText })
+          }
+        }
+      }
+    })
+
+    removeDoneListener = window.mimo.chat.onDone(() => {
+      cleanup()
+    })
+
+    try {
+      await window.mimo.chat.undo()
+    } catch (err) {
+      console.error('[ChatStore] undo error:', err)
+      cleanup()
+    }
+  }
+
+  async function redo() {
+    if (isStreaming.value) return
+
+    const userMsg: Message = {
+      id: `msg-${Date.now()}`,
+      role: 'user',
+      parts: [{ type: 'text', content: '/redo' }],
+      content: '/redo',
+      accumulatedText: '/redo',
+      timestamp: Date.now()
+    }
+    messages.value.push(userMsg)
+
+    const assistantMsg: Message = {
+      id: `msg-${Date.now()}-assistant`,
+      role: 'assistant',
+      parts: [],
+      content: '',
+      accumulatedText: '',
+      timestamp: Date.now()
+    }
+    messages.value.push(assistantMsg)
+    currentMessage.value = assistantMsg
+
+    isStreaming.value = true
+
+    removeChunkListener = window.mimo.chat.onChunk((chunk: { type: string; content: string }) => {
+      if (currentMessage.value) {
+        if (chunk.type === 'text') {
+          currentMessage.value.accumulatedText += chunk.content
+          currentMessage.value.content = currentMessage.value.accumulatedText
+          const parts = currentMessage.value.parts
+          const lastPart = parts[parts.length - 1]
+          if (lastPart?.type === 'text') {
+            lastPart.content = currentMessage.value.accumulatedText
+          } else {
+            parts.push({ type: 'text', content: currentMessage.value.accumulatedText })
+          }
+        }
+      }
+    })
+
+    removeDoneListener = window.mimo.chat.onDone(() => {
+      cleanup()
+    })
+
+    try {
+      await window.mimo.chat.redo()
+    } catch (err) {
+      console.error('[ChatStore] redo error:', err)
+      cleanup()
+    }
+  }
+
+  return { messages, isStreaming, currentMessage, mode, send, stop, clear, setMode, initMode, undo, redo }
 })

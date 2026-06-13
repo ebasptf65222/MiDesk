@@ -1,0 +1,21 @@
+{
+  "name": "tokyonight",
+  "description": "基于 Tokyonight 主题",
+  "theme": {
+    "primary": { "dark": "#7aa2f7", "light": "#2e7de9" },
+    "secondary": { "dark": "#bb9af7", "light": "#8245c3" },
+    "accent": { "dark": "#7dcfff", "light": "#0f4b6e" },
+    "success": { "dark": "#9ece6a", "light": "#26a183" },
+    "warning": { "dark": "#e0af68", "light": "#8c6c3e" },
+    "error": { "dark": "#f7768e", "light": "#c53b48" },
+    "info": { "dark": "#7dcfff", "light": "#0f4b6e" },
+    "text": { "dark": "#c0caf5", "light": "#3760bf" },
+    "textMuted": { "dark": "#565f89", "light": "#848cb5" },
+    "background": { "dark": "#1a1b26", "light": "#f0f0f8" },
+    "backgroundPanel": { "dark": "#1f2335", "light": "#e8e8f0" },
+    "backgroundElement": { "dark": "#24283b", "light": "#d8d8e8" },
+    "border": { "dark": "#292e42", "light": "#c4c4d8" },
+    "borderActive": { "dark": "#3b4261", "light": "#a0a0c0" },
+    "borderSubtle": { "dark": "#292e42", "light": "#d0d0e0" }
+  }
+}

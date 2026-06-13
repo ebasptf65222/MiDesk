@@ -70,6 +70,13 @@ export const PROVIDERS: ModelProvider[] = [
       { id: 'qwen2.5-coder', name: 'Qwen 2.5 Coder', provider: 'ollama', contextLength: 128000, description: '本地编码' },
       { id: 'deepseek-coder', name: 'DeepSeek Coder', provider: 'ollama', contextLength: 128000, description: '本地编码' }
     ]
+  },
+  {
+    id: 'custom',
+    name: '自定义',
+    baseUrl: '',
+    apiKeyRequired: true,
+    models: []
   }
 ]
 
@@ -77,6 +84,14 @@ export interface ProviderConfig {
   providerId: string
   apiKey: string
   baseUrl?: string
+  isCustomUrl?: boolean
+  customModelId?: string
+  isMultimodal?: boolean
+  modelFamily?: string
+  displayName?: string
+  inputContextWindow?: number
+  outputContextWindow?: number
+  maxToolRounds?: number
 }
 
 export class ModelProviderManager {

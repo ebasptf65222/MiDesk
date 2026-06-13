@@ -9,6 +9,15 @@ export interface AppSettings {
   autoSave: boolean
   autoSaveInterval: number
   fontSize: number
+  customBaseUrl: string
+  isCustomUrl: boolean
+  customModelId: string
+  isMultimodal: boolean
+  modelFamily: string
+  displayName: string
+  inputContextWindow: number
+  outputContextWindow: number
+  maxToolRounds: number
 }
 
 const CONFIG_DIR = path.join(os.homedir(), '.mimo-desktop')
@@ -20,7 +29,16 @@ const defaultSettings: AppSettings = {
   theme: 'dark',
   autoSave: true,
   autoSaveInterval: 60,
-  fontSize: 14
+  fontSize: 14,
+  customBaseUrl: '',
+  isCustomUrl: false,
+  customModelId: '',
+  isMultimodal: true,
+  modelFamily: '',
+  displayName: '',
+  inputContextWindow: 184000,
+  outputContextWindow: 16000,
+  maxToolRounds: 200
 }
 
 export async function loadSettings(): Promise<AppSettings> {

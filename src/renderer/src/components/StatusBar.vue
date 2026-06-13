@@ -20,6 +20,16 @@
       </span>
     </div>
     <div class="status-right">
+      <button class="status-btn" @click="handleUndo" title="撤销 (Ctrl+Z)" :disabled="chatStore.isStreaming">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 10h10a5 5 0 015 5v2M3 10l5 5M3 10l5-5"/>
+        </svg>
+      </button>
+      <button class="status-btn" @click="handleRedo" title="重做 (Ctrl+Shift+Z)" :disabled="chatStore.isStreaming">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 10H11a5 5 0 00-5 5v2M21 10l-5 5M21 10l-5-5"/>
+        </svg>
+      </button>
       <span class="status-item">UTF-8</span>
       <span class="status-item">LF</span>
       <span class="status-item" v-if="editorStore.activeFile">
@@ -35,8 +45,18 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useEditorStore } from '../stores/editor'
+import { useChatStore } from '../stores/chat'
 
 const editorStore = useEditorStore()
+const chatStore = useChatStore()
+
+function handleUndo() {
+  chatStore.undo()
+}
+
+function handleRedo() {
+  chatStore.redo()
+}
 const gitBranch = ref('')
 const cursorLine = ref(1)
 const cursorCol = ref(1)
@@ -104,5 +124,30 @@ onMounted(() => {
 
 .status-item svg {
   opacity: 0.7;
+}
+
+.status-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  background: none;
+  border: none;
+  color: #94a3b8;
+  border-radius: 3px;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.15s;
+}
+
+.status-btn:hover:not(:disabled) {
+  color: #e2e8f0;
+  background: rgba(51, 65, 85, 0.6);
+}
+
+.status-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 </style>

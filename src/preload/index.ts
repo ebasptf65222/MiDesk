@@ -24,7 +24,11 @@ const mimoAPI = {
       electronAPI.ipcRenderer.on('mimo:chat:done', handler)
       return () => electronAPI.ipcRenderer.removeListener('mimo:chat:done', handler)
     },
-    stop: () => electronAPI.ipcRenderer.invoke('mimo:chat:stop')
+    stop: () => electronAPI.ipcRenderer.invoke('mimo:chat:stop'),
+    undo: () => electronAPI.ipcRenderer.invoke('mimo:chat:undo'),
+    redo: () => electronAPI.ipcRenderer.invoke('mimo:chat:redo'),
+    setAgent: (agent: string) => electronAPI.ipcRenderer.invoke('mimo:chat:setAgent', agent),
+    getAgent: () => electronAPI.ipcRenderer.invoke('mimo:chat:getAgent')
   },
   file: {
     list: (dirPath: string) => electronAPI.ipcRenderer.invoke('mimo:file:list', dirPath),
@@ -113,6 +117,17 @@ const mimoAPI = {
   },
   inlineEdit: {
     edit: (filePath: string, selectedCode: string, instruction: string) => electronAPI.ipcRenderer.invoke('mimo:inline-edit:edit', filePath, selectedCode, instruction)
+  },
+  themes: {
+    list: () => electronAPI.ipcRenderer.invoke('mimo:themes:list'),
+    get: (name: string) => electronAPI.ipcRenderer.invoke('mimo:themes:get', name),
+    refresh: () => electronAPI.ipcRenderer.invoke('mimo:themes:refresh')
+  },
+  commands: {
+    list: () => electronAPI.ipcRenderer.invoke('mimo:commands:list'),
+    get: (name: string) => electronAPI.ipcRenderer.invoke('mimo:commands:get', name),
+    setDir: (dirPath: string) => electronAPI.ipcRenderer.invoke('mimo:commands:setDir', dirPath),
+    refresh: () => electronAPI.ipcRenderer.invoke('mimo:commands:refresh')
   },
   download: {
     status: () => electronAPI.ipcRenderer.invoke('mimo:download:status'),

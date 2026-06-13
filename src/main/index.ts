@@ -14,6 +14,8 @@ import { registerMcpIPC } from './ipc/mcp'
 import { registerRulesIPC } from './ipc/rules'
 import { registerInlineEditIPC } from './ipc/inline-edit'
 import { registerDownloadIPC } from './ipc/download'
+import { registerThemesIPC } from './ipc/themes'
+import { registerCommandsIPC } from './ipc/commands'
 import { downloader } from './services/downloader'
 import { setupAutoUpdater } from './updater'
 
@@ -94,6 +96,8 @@ app.whenReady().then(async () => {
   registerMcpIPC()
   registerRulesIPC()
   registerInlineEditIPC()
+  registerThemesIPC()
+  registerCommandsIPC()
 
   const mainWindow = createWindow()
 

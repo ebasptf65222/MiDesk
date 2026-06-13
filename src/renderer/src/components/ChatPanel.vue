@@ -4,11 +4,23 @@
       <div class="header-left">
         <span>AI 对话</span>
         <div class="mode-toggle">
-          <button :class="{ active: chatStore.mode === 'plan' }" @click="chatStore.setMode('plan')" title="规划模式">
-            规划
+          <button :class="{ active: chatStore.mode === 'build' }" @click="chatStore.setMode('build')" title="Build 模式 - 完整工具权限">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
+            </svg>
+            Build
           </button>
-          <button :class="{ active: chatStore.mode === 'act' }" @click="chatStore.setMode('act')" title="执行模式">
-            执行
+          <button :class="{ active: chatStore.mode === 'plan' }" @click="chatStore.setMode('plan')" title="Plan 模式 - 只读分析">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+            Plan
+          </button>
+          <button :class="{ active: chatStore.mode === 'compose' }" @click="chatStore.setMode('compose')" title="Compose 模式 - 技能编排">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+            Compose
           </button>
         </div>
         <button class="icon-btn" @click="showSessions = !showSessions" title="会话列表">
@@ -213,6 +225,20 @@ interface Session {
   updatedAt: number
 }
 
+interface SlashCommand {
+  name: string
+  description: string
+  action: string
+}
+
+interface CustomCommand {
+  name: string
+  description: string
+  template: string
+  agent?: string
+  model?: string
+}
+
 const chatStore = useChatStore()
 const editorStore = useEditorStore()
 const inputText = ref('')
@@ -224,14 +250,18 @@ const currentSessionId = ref<string | null>(null)
 const showSlashMenu = ref(false)
 const selectedCommandIndex = ref(0)
 const expandedThinkings = ref(new Set<number>())
+const customCommands = ref<CustomCommand[]>([])
 
-const slashCommands = [
+const builtInCommands: SlashCommand[] = [
   { name: '/help', description: '显示帮助信息', action: 'help' },
   { name: '/clear', description: '清空当前对话', action: 'clear' },
+  { name: '/undo', description: '撤销上次操作 (基于 Git)', action: 'undo' },
+  { name: '/redo', description: '重做上次撤销的操作', action: 'redo' },
   { name: '/model', description: '切换 AI 模型', action: 'model' },
   { name: '/save', description: '保存当前会话', action: 'save' },
   { name: '/export', description: '导出对话为 Markdown', action: 'export' },
   { name: '/stats', description: '查看 Token 统计', action: 'stats' },
+  { name: '/compact', description: '压缩会话上下文', action: 'compact' },
   { name: '/plan', description: '创建实现计划 - 使用 compose:plan 技能', action: 'compose:plan' },
   { name: '/debug', description: '系统化调试 - 使用 compose:debug 技能', action: 'compose:debug' },
   { name: '/tdd', description: '测试驱动开发 - 使用 compose:tdd 技能', action: 'compose:tdd' },
@@ -243,12 +273,21 @@ const slashCommands = [
   { name: '/feedback', description: '处理代码反馈 - 使用 compose:feedback 技能', action: 'compose:feedback' }
 ]
 
-const filteredCommands = ref(slashCommands)
+const slashCommands = computed<SlashCommand[]>(() => {
+  const custom = customCommands.value.map(cmd => ({
+    name: `/${cmd.name}`,
+    description: cmd.description || '自定义命令',
+    action: `custom:${cmd.name}`
+  }))
+  return [...builtInCommands, ...custom]
+})
+
+const filteredCommands = ref<SlashCommand[]>([])
 
 function handleInput() {
   if (inputText.value.startsWith('/')) {
     const query = inputText.value.toLowerCase()
-    filteredCommands.value = slashCommands.filter(cmd =>
+    filteredCommands.value = slashCommands.value.filter(cmd =>
       cmd.name.toLowerCase().includes(query)
     )
     showSlashMenu.value = filteredCommands.value.length > 0
@@ -258,9 +297,18 @@ function handleInput() {
   }
 }
 
-function executeCommand(cmd: typeof slashCommands[0]) {
+function executeCommand(cmd: SlashCommand) {
   showSlashMenu.value = false
   inputText.value = ''
+
+  if (cmd.action.startsWith('custom:')) {
+    const commandName = cmd.action.substring(7)
+    const customCmd = customCommands.value.find(c => c.name === commandName)
+    if (customCmd) {
+      chatStore.send(customCmd.template)
+    }
+    return
+  }
 
   if (cmd.action.startsWith('compose:')) {
     const skillName = cmd.action
@@ -283,14 +331,26 @@ function executeCommand(cmd: typeof slashCommands[0]) {
     case 'clear':
       chatStore.clear()
       break
+    case 'undo':
+      chatStore.undo()
+      break
+    case 'redo':
+      chatStore.redo()
+      break
+    case 'compact':
+      chatStore.send('请压缩当前会话上下文，保留关键信息，删除冗余的历史消息。')
+      break
     case 'save':
       saveSession()
       break
     case 'help':
+      const builtIn = builtInCommands.filter(c => !c.action.startsWith('compose:'))
+      const compose = builtInCommands.filter(c => c.action.startsWith('compose:'))
+      const custom = customCommands.value.map(c => ({ name: `/${c.name}`, description: c.description || '自定义命令' }))
       chatStore.messages.push({
         id: `msg-${Date.now()}`,
         role: 'assistant',
-        content: `## 可用命令\n\n### 基础命令\n${slashCommands.filter(c => !c.action.startsWith('compose:')).map(c => `- **${c.name}** - ${c.description}`).join('\n')}\n\n### Compose 技能命令\n${slashCommands.filter(c => c.action.startsWith('compose:')).map(c => `- **${c.name}** - ${c.description}`).join('\n')}`,
+        content: `## 可用命令\n\n### 基础命令\n${builtIn.map(c => `- **${c.name}** - ${c.description}`).join('\n')}\n\n### Compose 技能命令\n${compose.map(c => `- **${c.name}** - ${c.description}`).join('\n')}${custom.length > 0 ? `\n\n### 自定义命令\n${custom.map(c => `- **${c.name}** - ${c.description}`).join('\n')}` : ''}`,
         timestamp: Date.now()
       })
       break
@@ -439,7 +499,18 @@ function formatToolResult(content: string): string {
 
 onMounted(() => {
   loadSessionList()
+  chatStore.initMode()
+  loadCustomCommands()
 })
+
+async function loadCustomCommands() {
+  try {
+    customCommands.value = await window.mimo.commands.list()
+  } catch (err) {
+    console.error('Failed to load custom commands:', err)
+    customCommands.value = []
+  }
+}
 
 function handleKeydown(e: KeyboardEvent) {
   // Slash menu navigation
@@ -554,7 +625,10 @@ watch(inputText, () => nextTick(autoResize))
 }
 
 .mode-toggle button {
-  padding: 4px 10px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
   border-radius: 4px;
   font-size: 11px;
   background: none;
@@ -571,6 +645,14 @@ watch(inputText, () => nextTick(autoResize))
 
 .mode-toggle button:hover:not(.active) {
   color: #e2e8f0;
+}
+
+.mode-toggle button svg {
+  opacity: 0.7;
+}
+
+.mode-toggle button.active svg {
+  opacity: 1;
 }
 
 .icon-btn:hover {

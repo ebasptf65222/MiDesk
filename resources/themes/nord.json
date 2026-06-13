@@ -1,0 +1,21 @@
+{
+  "name": "nord",
+  "description": "基于 Nord 主题",
+  "theme": {
+    "primary": { "dark": "#88c0d0", "light": "#5e81ac" },
+    "secondary": { "dark": "#81a1c1", "light": "#5e81ac" },
+    "accent": { "dark": "#8fbcbb", "light": "#81a1c1" },
+    "success": { "dark": "#a3be8c", "light": "#a3be8c" },
+    "warning": { "dark": "#ebcb8b", "light": "#d08770" },
+    "error": { "dark": "#bf616a", "light": "#bf616a" },
+    "info": { "dark": "#88c0d0", "light": "#5e81ac" },
+    "text": { "dark": "#eceff4", "light": "#2e3440" },
+    "textMuted": { "dark": "#4c566a", "light": "#4c566a" },
+    "background": { "dark": "#2e3440", "light": "#eceff4" },
+    "backgroundPanel": { "dark": "#3b4252", "light": "#e5e9f0" },
+    "backgroundElement": { "dark": "#434c5e", "light": "#d8dee9" },
+    "border": { "dark": "#4c566a", "light": "#d8dee9" },
+    "borderActive": { "dark": "#616e88", "light": "#b4c4d8" },
+    "borderSubtle": { "dark": "#434c5e", "light": "#e5e9f0" }
+  }
+}

@@ -5,7 +5,7 @@
         {{ provider.name }}
       </option>
     </select>
-    <select v-model="selectedModel" @change="onModelChange">
+    <select v-model="selectedModel" @change="onModelChange" v-if="selectedProvider !== 'custom'">
       <option v-for="model in availableModels" :key="model.id" :value="model.id">
         {{ model.name }} - {{ model.description }}
       </option>
@@ -16,6 +16,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useModelsStore } from '../stores/models'
+
+const emit = defineEmits<{
+  (e: 'provider-change', providerId: string): void
+}>()
 
 const modelsStore = useModelsStore()
 const selectedProvider = ref('mimo')
@@ -32,6 +36,7 @@ onMounted(() => {
 function onProviderChange() {
   selectedModel.value = availableModels.value[0]?.id || ''
   modelsStore.selectModel(selectedProvider.value, selectedModel.value)
+  emit('provider-change', selectedProvider.value)
 }
 
 function onModelChange() {

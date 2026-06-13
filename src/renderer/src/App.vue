@@ -53,7 +53,8 @@
           <SettingsView :activeTab="settingsTab" />
         </div>
       </div>
-      <aside class="chat-aside">
+      <div class="chat-resize-handle" @mousedown="onChatDragStart"></div>
+      <aside class="chat-aside" :style="{ width: chatSidebarWidth + 'px', minWidth: chatSidebarWidth + 'px' }">
         <ChatPanel />
       </aside>
     </div>
@@ -92,14 +93,46 @@ import CommandPalette from './components/CommandPalette.vue'
 import DownloadProgress from './components/DownloadProgress.vue'
 import { useDiffStore } from './stores/diff'
 import { useEditorStore } from './stores/editor'
+import { useChatStore } from './stores/chat'
 
 const diffStore = useDiffStore()
 const editorStore = useEditorStore()
+const chatStore = useChatStore()
 const toastRef = ref()
 const showCommandPalette = ref(false)
 const showSearch = ref(false)
 const showSidebar = ref(true)
 const settingsTab = ref('ai')
+const chatSidebarWidth = ref(parseInt(localStorage.getItem('chatSidebarWidth') || '360', 10))
+const isDraggingChat = ref(false)
+let dragStartX = 0
+let dragStartWidth = 0
+
+function onChatDragStart(e: MouseEvent) {
+  isDraggingChat.value = true
+  dragStartX = e.clientX
+  dragStartWidth = chatSidebarWidth.value
+  document.addEventListener('mousemove', onChatDragMove)
+  document.addEventListener('mouseup', onChatDragEnd)
+  document.body.style.cursor = 'col-resize'
+  document.body.style.userSelect = 'none'
+}
+
+function onChatDragMove(e: MouseEvent) {
+  if (!isDraggingChat.value) return
+  const delta = dragStartX - e.clientX
+  const newWidth = Math.min(Math.max(dragStartWidth + delta, 280), 800)
+  chatSidebarWidth.value = newWidth
+}
+
+function onChatDragEnd() {
+  isDraggingChat.value = false
+  document.removeEventListener('mousemove', onChatDragMove)
+  document.removeEventListener('mouseup', onChatDragEnd)
+  document.body.style.cursor = ''
+  document.body.style.userSelect = ''
+  localStorage.setItem('chatSidebarWidth', String(chatSidebarWidth.value))
+}
 
 const settingTabs = [
   { id: 'ai', label: 'AI', icon: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>' },
@@ -273,6 +306,18 @@ function handleKeyboard(e: KeyboardEvent) {
     if (showDiff.value) {
       diffStore.clear()
     }
+  }
+
+  // Ctrl+Z - Undo
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault()
+    chatStore.undo()
+  }
+
+  // Ctrl+Shift+Z - Redo
+  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'Z') {
+    e.preventDefault()
+    chatStore.redo()
   }
 }
 
@@ -478,9 +523,8 @@ body {
 
 .settings-area {
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .placeholder {
@@ -499,14 +543,36 @@ body {
 }
 
 .chat-aside {
-  width: 360px;
-  min-width: 360px;
   flex-shrink: 0;
   background: rgba(30, 41, 59, 0.95);
   border-left: 1px solid rgba(51, 65, 85, 0.8);
   display: flex;
   flex-direction: column;
   margin-left: auto;
+}
+
+.chat-resize-handle {
+  width: 4px;
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  flex-shrink: 0;
+  z-index: 10;
+  transition: background 0.15s;
+}
+
+.chat-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -2px;
+  right: -2px;
+}
+
+.chat-resize-handle:hover,
+.chat-resize-handle:active {
+  background: rgba(59, 130, 246, 0.4);
 }
 
 /* Glassmorphism effect for panels - increased opacity for readability */
