@@ -6,6 +6,7 @@ export interface AppSettings {
   apiKey: string
   model: string
   theme: 'dark' | 'light' | 'system'
+  colorTheme: string
   autoSave: boolean
   autoSaveInterval: number
   fontSize: number
@@ -27,6 +28,7 @@ const defaultSettings: AppSettings = {
   apiKey: '',
   model: 'mimo-auto',
   theme: 'dark',
+  colorTheme: 'default',
   autoSave: true,
   autoSaveInterval: 60,
   fontSize: 14,

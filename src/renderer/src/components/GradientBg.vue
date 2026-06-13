@@ -41,11 +41,11 @@ onMounted(() => {
   z-index: -2;
   background: linear-gradient(
     135deg,
-    rgba(15, 23, 42, 1) 0%,
-    rgba(30, 41, 59, 1) 25%,
-    rgba(15, 23, 42, 1) 50%,
-    rgba(51, 65, 85, 0.8) 75%,
-    rgba(15, 23, 42, 1) 100%
+    var(--bg-primary, rgba(15, 23, 42, 1)) 0%,
+    var(--bg-secondary, rgba(30, 41, 59, 1)) 25%,
+    var(--bg-primary, rgba(15, 23, 42, 1)) 50%,
+    var(--bg-tertiary, rgba(51, 65, 85, 0.8)) 75%,
+    var(--bg-primary, rgba(15, 23, 42, 1)) 100%
   );
   background-size: 200% 200%;
   background-position: 0% 50%;

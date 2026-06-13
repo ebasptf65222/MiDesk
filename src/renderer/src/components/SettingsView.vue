@@ -200,6 +200,139 @@
       </div>
     </div>
 
+    <!-- Providers -->
+    <div class="settings-panel" v-show="activeTab === 'providers'">
+      <div class="panel-header">
+        <h3>提供商管理</h3>
+      </div>
+      <div class="panel-body">
+        <div class="form-row">
+          <label>启用的提供商</label>
+          <span class="field-hint">留空表示启用所有提供商</span>
+          <input v-model="settings.enabledProviders" placeholder="anthropic,openai (逗号分隔)" />
+        </div>
+        <div class="form-row">
+          <label>禁用的提供商</label>
+          <span class="field-hint">禁用的提供商不会出现在模型列表中</span>
+          <input v-model="settings.disabledProviders" placeholder="openai,gemini (逗号分隔)" />
+        </div>
+        <div class="info-box">
+          <span class="info-icon">i</span>
+          <span>禁用列表优先于启用列表。配置后需要重启应用生效。</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Permissions -->
+    <div class="settings-panel" v-show="activeTab === 'permissions'">
+      <div class="panel-header">
+        <h3>权限配置</h3>
+      </div>
+      <div class="panel-body">
+        <div class="form-row">
+          <label>全局权限</label>
+          <select v-model="settings.globalPermission">
+            <option value="allow">允许 (allow) - 无需审批</option>
+            <option value="ask">询问 (ask) - 每次审批</option>
+            <option value="deny">拒绝 (deny) - 禁止操作</option>
+          </select>
+        </div>
+        <div class="permission-list">
+          <div class="permission-item">
+            <span class="perm-name">bash</span>
+            <select v-model="settings.permissionBash">
+              <option value="allow">允许</option>
+              <option value="ask">询问</option>
+              <option value="deny">拒绝</option>
+            </select>
+          </div>
+          <div class="permission-item">
+            <span class="perm-name">edit</span>
+            <select v-model="settings.permissionEdit">
+              <option value="allow">允许</option>
+              <option value="ask">询问</option>
+              <option value="deny">拒绝</option>
+            </select>
+          </div>
+          <div class="permission-item">
+            <span class="perm-name">webfetch</span>
+            <select v-model="settings.permissionWebfetch">
+              <option value="allow">允许</option>
+              <option value="ask">询问</option>
+              <option value="deny">拒绝</option>
+            </select>
+          </div>
+          <div class="permission-item">
+            <span class="perm-name">skill</span>
+            <select v-model="settings.permissionSkill">
+              <option value="allow">允许</option>
+              <option value="ask">询问</option>
+              <option value="deny">拒绝</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Environment Variables -->
+    <div class="settings-panel" v-show="activeTab === 'envvars'">
+      <div class="panel-header">
+        <h3>环境变量</h3>
+      </div>
+      <div class="panel-body">
+        <div class="env-var-list">
+          <div v-for="(envVar, idx) in settings.envVars" :key="idx" class="env-var-item">
+            <input v-model="envVar.key" placeholder="变量名" class="env-key" />
+            <input v-model="envVar.value" placeholder="值" class="env-value" type="password" />
+            <button class="remove-btn" @click="removeEnvVar(idx)">×</button>
+          </div>
+        </div>
+        <button class="add-btn" @click="addEnvVar">+ 添加环境变量</button>
+        <div class="info-box">
+          <span class="info-icon">i</span>
+          <span>常用的 MiMo 环境变量：<br>
+            - MIMO_MULTIMODAL: 1 (启用多模态)<br>
+            - MIMO_MODEL_FAMILY: openai/anthropic/google<br>
+            - MIMO_MAX_TOOL_ROUNDS: 200<br>
+            - MIMOCODE_ENABLE_EXA: 1 (启用 websearch)
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Network -->
+    <div class="settings-panel" v-show="activeTab === 'network'">
+      <div class="panel-header">
+        <h3>网络配置</h3>
+      </div>
+      <div class="panel-body">
+        <div class="form-row">
+          <label>HTTPS 代理</label>
+          <input v-model="settings.httpsProxy" placeholder="https://proxy.example.com:8080" />
+          <span class="field-hint">用于 API 请求的 HTTPS 代理地址</span>
+        </div>
+        <div class="form-row">
+          <label>HTTP 代理</label>
+          <input v-model="settings.httpProxy" placeholder="http://proxy.example.com:8080" />
+          <span class="field-hint">当 HTTPS 代理不可用时使用</span>
+        </div>
+        <div class="form-row">
+          <label>不使用代理的地址</label>
+          <input v-model="settings.noProxy" placeholder="localhost,127.0.0.1" />
+          <span class="field-hint">逗号分隔的地址列表，这些地址不走代理</span>
+        </div>
+        <div class="form-row">
+          <label>自定义 CA 证书</label>
+          <input v-model="settings.caCert" placeholder="/path/to/ca-cert.pem" />
+          <span class="field-hint">企业自定义 CA 证书路径 (NODE_EXTRA_CA_CERTS)</span>
+        </div>
+        <div class="info-box">
+          <span class="info-icon">i</span>
+          <span>代理和证书配置会作为环境变量传递给 MiMo CLI。配置后需要重启应用生效。</span>
+        </div>
+      </div>
+    </div>
+
     <!-- Data -->
     <div class="settings-panel" v-show="activeTab === 'data'">
       <div class="panel-header">
@@ -348,7 +481,7 @@ watch(settings, () => {
 .panel-header h3 {
   font-size: 16px;
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--text-primary);
 }
 
 .panel-body {
@@ -372,11 +505,11 @@ watch(settings, () => {
 .form-row label {
   font-size: 13px;
   font-weight: 500;
-  color: #e2e8f0;
+  color: var(--text-primary);
 }
 
 .required {
-  color: #ef4444;
+  color: var(--error-color);
 }
 
 .input-header {
@@ -388,20 +521,20 @@ watch(settings, () => {
 
 .hint {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-secondary);
 }
 
 .form-row input {
   padding: 8px 12px;
-  background: #0f172a;
-  border: 1px solid #334155;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  color: #e2e8f0;
+  color: var(--text-primary);
   font-size: 13px;
 }
 
 .form-row input:focus {
-  border-color: #3b82f6;
+  border-color: var(--accent-color);
   outline: none;
 }
 
@@ -409,11 +542,11 @@ watch(settings, () => {
   display: flex;
   gap: 8px;
   padding: 10px 12px;
-  background: rgba(59, 130, 246, 0.1);
-  border: 1px solid rgba(59, 130, 246, 0.3);
+  background: var(--accent-muted);
+  border: 1px solid var(--accent-color);
   border-radius: 6px;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-secondary);
   line-height: 1.5;
 }
 
@@ -423,7 +556,7 @@ watch(settings, () => {
   justify-content: center;
   width: 18px;
   height: 18px;
-  background: #3b82f6;
+  background: var(--accent-color);
   color: white;
   border-radius: 50%;
   font-size: 11px;
@@ -439,44 +572,44 @@ watch(settings, () => {
 .input-group input {
   flex: 1;
   padding: 8px 12px;
-  background: #0f172a;
-  border: 1px solid #334155;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  color: #e2e8f0;
+  color: var(--text-primary);
   font-size: 13px;
 }
 
 .input-group input:focus {
-  border-color: #3b82f6;
+  border-color: var(--accent-color);
   outline: none;
 }
 
 .input-btn {
   padding: 8px 12px;
-  background: #334155;
+  background: var(--bg-tertiary);
   border: none;
   border-radius: 6px;
-  color: #e2e8f0;
+  color: var(--text-primary);
   font-size: 12px;
   cursor: pointer;
 }
 
 .input-btn:hover {
-  background: #475569;
+  background: var(--border-active);
 }
 
 select {
   padding: 8px 12px;
-  background: #0f172a;
-  border: 1px solid #334155;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  color: #e2e8f0;
+  color: var(--text-primary);
   font-size: 13px;
   cursor: pointer;
 }
 
 select:focus {
-  border-color: #3b82f6;
+  border-color: var(--accent-color);
   outline: none;
 }
 
@@ -493,7 +626,7 @@ select:focus {
 .range-control input[type="range"] {
   width: 120px;
   height: 4px;
-  background: #334155;
+  background: var(--bg-tertiary);
   border-radius: 2px;
   outline: none;
   -webkit-appearance: none;
@@ -503,21 +636,21 @@ select:focus {
   -webkit-appearance: none;
   width: 14px;
   height: 14px;
-  background: #3b82f6;
+  background: var(--accent-color);
   border-radius: 50%;
   cursor: pointer;
 }
 
 .range-value {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-secondary);
   min-width: 35px;
 }
 
 .switch {
   width: 44px;
   height: 24px;
-  background: #334155;
+  background: var(--bg-tertiary);
   border: none;
   border-radius: 12px;
   padding: 2px;
@@ -527,7 +660,7 @@ select:focus {
 }
 
 .switch.on {
-  background: #3b82f6;
+  background: var(--accent-color);
 }
 
 .switch-thumb {
@@ -544,7 +677,7 @@ select:focus {
 }
 
 .advanced-section {
-  border-top: 1px solid #334155;
+  border-top: 1px solid var(--border-color);
   padding-top: 16px;
 }
 
@@ -554,14 +687,14 @@ select:focus {
   gap: 6px;
   background: none;
   border: none;
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-size: 13px;
   cursor: pointer;
   padding: 0;
 }
 
 .advanced-toggle:hover {
-  color: #e2e8f0;
+  color: var(--text-primary);
 }
 
 .chevron {
@@ -581,7 +714,7 @@ select:focus {
 
 .field-hint {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-muted);
   margin-top: -4px;
 }
 
@@ -600,7 +733,7 @@ select:focus {
   top: 50%;
   transform: translateY(-50%);
   font-size: 11px;
-  color: #64748b;
+  color: var(--text-muted);
 }
 
 .context-inputs {
@@ -617,21 +750,21 @@ select:focus {
 
 .context-label {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-secondary);
 }
 
 .context-field input {
   width: 100%;
   padding: 8px 12px;
-  background: #0f172a;
-  border: 1px solid #334155;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
-  color: #e2e8f0;
+  color: var(--text-primary);
   font-size: 13px;
 }
 
 .context-field input:focus {
-  border-color: #3b82f6;
+  border-color: var(--accent-color);
   outline: none;
 }
 
@@ -647,27 +780,27 @@ select:focus {
   align-items: center;
   gap: 8px;
   padding: 16px 12px;
-  background: #1e293b;
-  border: 2px solid #334155;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .theme-card:hover {
-  border-color: #475569;
+  border-color: var(--border-active);
 }
 
 .theme-card.active {
-  border-color: #3b82f6;
-  background: rgba(59, 130, 246, 0.1);
+  border-color: var(--accent-color);
+  background: var(--accent-muted);
 }
 
 .theme-preview {
   width: 48px;
   height: 32px;
   border-radius: 4px;
-  border: 1px solid #334155;
+  border: 1px solid var(--border-color);
 }
 
 .theme-preview.dark {
@@ -684,11 +817,11 @@ select:focus {
 
 .theme-name {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-secondary);
 }
 
 .theme-card.active .theme-name {
-  color: #60a5fa;
+  color: var(--accent-color);
 }
 
 .color-theme-grid {
@@ -703,20 +836,20 @@ select:focus {
   align-items: center;
   gap: 6px;
   padding: 12px 8px;
-  background: #1e293b;
-  border: 2px solid #334155;
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
   border-radius: 8px;
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .color-theme-card:hover {
-  border-color: #475569;
+  border-color: var(--border-active);
 }
 
 .color-theme-card.active {
-  border-color: #3b82f6;
-  background: rgba(59, 130, 246, 0.1);
+  border-color: var(--accent-color);
+  background: var(--accent-muted);
 }
 
 .color-preview {
@@ -733,12 +866,12 @@ select:focus {
 
 .color-theme-name {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--text-secondary);
   text-transform: capitalize;
 }
 
 .color-theme-card.active .color-theme-name {
-  color: #60a5fa;
+  color: var(--accent-color);
 }
 
 .danger-zone {
@@ -750,7 +883,7 @@ select:focus {
 
 .danger-zone p {
   font-size: 13px;
-  color: #94a3b8;
+  color: var(--text-secondary);
   margin-bottom: 12px;
 }
 
@@ -759,7 +892,7 @@ select:focus {
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid rgba(239, 68, 68, 0.3);
   border-radius: 6px;
-  color: #ef4444;
+  color: var(--error-color);
   font-size: 13px;
   cursor: pointer;
   transition: all 0.15s;
@@ -774,7 +907,7 @@ select:focus {
   bottom: 40px;
   right: 20px;
   font-size: 12px;
-  color: #22c55e;
+  color: var(--success-color);
   background: rgba(34, 197, 94, 0.1);
   padding: 6px 12px;
   border-radius: 6px;

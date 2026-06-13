@@ -101,10 +101,10 @@ onMounted(() => {
   justify-content: space-between;
   height: 24px;
   padding: 0 12px;
-  background: #1e293b;
-  border-top: 1px solid #334155;
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--text-secondary);
 }
 
 .status-left,
@@ -134,7 +134,7 @@ onMounted(() => {
   height: 18px;
   background: none;
   border: none;
-  color: #94a3b8;
+  color: var(--text-secondary);
   border-radius: 3px;
   cursor: pointer;
   padding: 0;
@@ -142,8 +142,8 @@ onMounted(() => {
 }
 
 .status-btn:hover:not(:disabled) {
-  color: #e2e8f0;
-  background: rgba(51, 65, 85, 0.6);
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
 }
 
 .status-btn:disabled {

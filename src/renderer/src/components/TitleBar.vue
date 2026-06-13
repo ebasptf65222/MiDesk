@@ -100,8 +100,8 @@ function close() {
   align-items: center;
   justify-content: space-between;
   padding: 0 8px;
-  background: rgba(30, 41, 59, 0.98);
-  border-bottom: 1px solid rgba(51, 65, 85, 0.8);
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
   -webkit-app-region: drag;
   position: relative;
   z-index: 10;
@@ -124,14 +124,14 @@ function close() {
   background: none;
   border: none;
   border-radius: 4px;
-  color: #94a3b8;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .nav-btn:hover {
-  background: rgba(51, 65, 85, 0.6);
-  color: #e2e8f0;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .nav-tabs {
@@ -148,7 +148,7 @@ function close() {
   background: none;
   border: none;
   border-radius: 5px;
-  color: #94a3b8;
+  color: var(--text-secondary);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -157,13 +157,13 @@ function close() {
 }
 
 .nav-tab:hover {
-  background: rgba(51, 65, 85, 0.5);
-  color: #e2e8f0;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .nav-tab.active {
-  background: rgba(59, 130, 246, 0.2);
-  color: #60a5fa;
+  background: var(--accent-muted);
+  color: var(--accent-color);
 }
 
 .tab-icon {
@@ -182,7 +182,7 @@ function close() {
 .title {
   font-size: 12px;
   font-weight: 500;
-  color: #64748b;
+  color: var(--text-muted);
   letter-spacing: 0.5px;
 }
 
@@ -202,14 +202,14 @@ function close() {
   background: none;
   border: none;
   border-radius: 4px;
-  color: #94a3b8;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .action-btn:hover {
-  background: rgba(51, 65, 85, 0.6);
-  color: #e2e8f0;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .window-controls {
@@ -218,7 +218,7 @@ function close() {
   gap: 2px;
   margin-left: 8px;
   padding-left: 8px;
-  border-left: 1px solid rgba(51, 65, 85, 0.5);
+  border-left: 1px solid var(--border-active);
 }
 
 .window-btn {
@@ -230,14 +230,14 @@ function close() {
   background: none;
   border: none;
   border-radius: 4px;
-  color: #94a3b8;
+  color: var(--text-secondary);
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .window-btn:hover {
-  background: rgba(51, 65, 85, 0.6);
-  color: #e2e8f0;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
 }
 
 .window-btn.close:hover {
