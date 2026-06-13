@@ -6,9 +6,9 @@
 
 **AI-Powered Intelligent Code Editor**
 
-[![Electron](https://img.shields.io/badge/Electron-28+-47848F?logo=electron)](https://www.electronjs.org/)
-[![Vue](https://img.shields.io/badge/Vue-3.4+-42B883?logo=vue.js)](https://vuejs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5+-3178C6?logo=typescript)](https://www.typescriptlang.org/)
+[![Electron](https://img.shields.io/badge/Electron-42+-47848F?logo=electron)](https://www.electronjs.org/)
+[![Vue](https://img.shields.io/badge/Vue-3.5+-42B883?logo=vue.js)](https://vuejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.5+-3178C6?logo=typescript)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 English | [简体中文](README.md)
@@ -20,33 +20,39 @@ English | [简体中文](README.md)
 ## ✨ Features
 
 ### 🤖 AI Assistant
-- **Multi-Model Support** - OpenAI / Anthropic / Google / Ollama / Xiaomi MiMo
+- **Multi-Model Support** - OpenAI / Anthropic / Google / Ollama / Xiaomi MiMo / Custom API
 - **Streaming Chat** - Real-time streaming responses with Markdown rendering
-- **Inline Editing** - `Cmd+K` for quick AI-assisted code editing
-- **Plan/Act Modes** - Smart planning and execution mode switching
+- **Inline Editing** - `Ctrl+K` for quick AI-assisted code editing
+- **Multi-Mode Switching** - Build (full tool access) / Plan (read-only analysis) / Compose (skill orchestration)
+- **Session Management** - Save, export, and import chat sessions
+- **Multimodal Support** - Support for images, files, and other multimodal inputs
 
 ### 📁 Code Editing
 - **File Explorer** - Tree-structure project file browsing
 - **Multi-Tab Editing** - Edit multiple files simultaneously
 - **Syntax Highlighting** - Full syntax support based on Monaco Editor
 - **Diff View** - Code diff comparison with one-click apply
+- **Smart Completion** - AI-powered code completion suggestions
 
 ### 🛠 Developer Tools
 - **Built-in Terminal** - Multi-functional terminal based on xterm.js
 - **Git Integration** - Branch management, change viewing, quick commits
 - **Global Search** - `Ctrl+Shift+F` project-wide text search
 - **Command Palette** - `Ctrl+Shift+P` quick command execution
+- **CLI Tools** - Automatic download and management of MiMo CLI tools
 
 ### 🔌 Extensibility
 - **MCP Protocol** - Model Context Protocol support for external tool invocation
 - **Skills Management** - Install/uninstall AI skill extensions
 - **Rules System** - Project-level/global custom AI behavior rules
+- **Custom Models** - Support for configuring custom OpenAI-compatible API endpoints
 
 ### 🎨 User Experience
 - **Theme System** - Light/dark theme switching
 - **GSAP Animations** - Smooth and elegant interface effects
 - **Status Bar** - Real-time line numbers, encoding, branch info
 - **Toast Notifications** - Lightweight operation feedback
+- **Responsive Layout** - Adaptive to different screen sizes
 
 ---
 
@@ -132,13 +138,13 @@ mimo-desktop/
 
 | Category | Technology |
 |----------|------------|
-| Framework | Electron 28 |
-| Frontend | Vue 3 + TypeScript |
-| Build Tool | electron-vite |
+| Framework | Electron 42 |
+| Frontend | Vue 3.5 + TypeScript 5.5 |
+| Build Tool | electron-vite 5 / Vite 7 |
 | Editor | Monaco Editor |
-| Terminal | xterm.js |
-| Animation | GSAP |
-| State Management | Pinia |
+| Terminal | xterm.js 6 |
+| Animation | GSAP 3.15 |
+| State Management | Pinia 3 |
 | Styling | SCSS |
 
 ---
