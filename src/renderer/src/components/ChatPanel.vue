@@ -158,6 +158,40 @@
     </div>
 
     <div class="chat-input-area">
+      <!-- File Reference Menu -->
+      <div class="file-menu" v-if="showFileMenu">
+        <div class="file-menu-header">
+          <span>选择文件引用</span>
+          <button class="icon-btn" @click="showFileMenu = false">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <div class="file-menu-items">
+          <div
+            v-for="(file, index) in fileSearchResults"
+            :key="file.path"
+            :class="['file-item', { active: index === selectedFileIndex }]"
+            @click="selectFile(file)"
+            @mouseenter="selectedFileIndex = index"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+              <polyline points="14,2 14,8 20,8"/>
+            </svg>
+            <span class="file-name">{{ file.name }}</span>
+            <span class="file-path">{{ file.path.replace(editorStore.rootPath, '').replace(/^[/\\]/, '') }}</span>
+          </div>
+          <div v-if="fileSearchResults.length === 0 && !fileSearchLoading" class="file-menu-empty">
+            未找到匹配文件
+          </div>
+          <div v-if="fileSearchLoading" class="file-menu-loading">
+            搜索中...
+          </div>
+        </div>
+      </div>
+
       <!-- Slash Command Menu -->
       <div class="slash-menu" v-if="showSlashMenu">
         <div
@@ -252,6 +286,14 @@ const selectedCommandIndex = ref(0)
 const expandedThinkings = ref(new Set<number>())
 const customCommands = ref<CustomCommand[]>([])
 
+// @ file reference state
+const showFileMenu = ref(false)
+const fileSearchQuery = ref('')
+const fileSearchResults = ref<Array<{ name: string; path: string; isDirectory: boolean }>>([])
+const selectedFileIndex = ref(0)
+const fileSearchLoading = ref(false)
+let fileSearchDebounce: ReturnType<typeof setTimeout> | null = null
+
 const builtInCommands: SlashCommand[] = [
   { name: '/help', description: '显示帮助信息', action: 'help' },
   { name: '/clear', description: '清空当前对话', action: 'clear' },
@@ -285,8 +327,25 @@ const slashCommands = computed<SlashCommand[]>(() => {
 const filteredCommands = ref<SlashCommand[]>([])
 
 function handleInput() {
-  if (inputText.value.startsWith('/')) {
-    const query = inputText.value.toLowerCase()
+  const text = inputText.value
+
+  // Check for @ file reference
+  const atIndex = text.lastIndexOf('@')
+  if (atIndex >= 0 && (atIndex === 0 || text[atIndex - 1] === ' ')) {
+    const query = text.substring(atIndex + 1)
+    if (!query.includes(' ') || query.length < 30) {
+      fileSearchQuery.value = query
+      showFileMenu.value = true
+      showSlashMenu.value = false
+      searchFiles(query)
+      return
+    }
+  }
+  showFileMenu.value = false
+
+  // Check for slash commands
+  if (text.startsWith('/')) {
+    const query = text.toLowerCase()
     filteredCommands.value = slashCommands.value.filter(cmd =>
       cmd.name.toLowerCase().includes(query)
     )
@@ -294,6 +353,48 @@ function handleInput() {
     selectedCommandIndex.value = 0
   } else {
     showSlashMenu.value = false
+  }
+}
+
+async function searchFiles(query: string) {
+  if (!editorStore.rootPath) {
+    fileSearchResults.value = []
+    return
+  }
+
+  fileSearchLoading.value = true
+  try {
+    const results = await window.mimo.file.search(editorStore.rootPath, query || '.')
+    fileSearchResults.value = results.slice(0, 10)
+    selectedFileIndex.value = 0
+  } catch (err) {
+    console.error('File search error:', err)
+    fileSearchResults.value = []
+  } finally {
+    fileSearchLoading.value = false
+  }
+}
+
+async function selectFile(file: { name: string; path: string }) {
+  try {
+    const content = await window.mimo.file.read(file.path)
+    const relativePath = file.path.replace(editorStore.rootPath, '').replace(/^[/\\]/, '')
+
+    // Replace @query with formatted file reference
+    const atIndex = inputText.value.lastIndexOf('@')
+    if (atIndex >= 0) {
+      const before = inputText.value.substring(0, atIndex)
+      inputText.value = `${before}@${relativePath}\n\`\`\`\n${content}\n\`\`\`\n`
+    }
+
+    showFileMenu.value = false
+    fileSearchQuery.value = ''
+    nextTick(() => {
+      inputEl.value?.focus()
+      autoResize()
+    })
+  } catch (err) {
+    console.error('Failed to read file:', err)
   }
 }
 
@@ -513,6 +614,29 @@ async function loadCustomCommands() {
 }
 
 function handleKeydown(e: KeyboardEvent) {
+  // File menu navigation
+  if (showFileMenu.value) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      selectedFileIndex.value = Math.min(
+        selectedFileIndex.value + 1,
+        fileSearchResults.value.length - 1
+      )
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      selectedFileIndex.value = Math.max(selectedFileIndex.value - 1, 0)
+    } else if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      if (fileSearchResults.value[selectedFileIndex.value]) {
+        selectFile(fileSearchResults.value[selectedFileIndex.value])
+      }
+      return
+    } else if (e.key === 'Escape') {
+      showFileMenu.value = false
+      return
+    }
+  }
+
   // Slash menu navigation
   if (showSlashMenu.value) {
     if (e.key === 'ArrowDown') {
@@ -1048,6 +1172,79 @@ watch(inputText, () => nextTick(autoResize))
 .cmd-desc {
   font-size: 12px;
   color: #94a3b8;
+}
+
+/* File Reference Menu */
+.file-menu {
+  position: absolute;
+  bottom: 100%;
+  left: 12px;
+  right: 12px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  max-height: 250px;
+  display: flex;
+  flex-direction: column;
+  z-index: 20;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.file-menu-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #94a3b8;
+  border-bottom: 1px solid #334155;
+}
+
+.file-menu-items {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.file-item:hover,
+.file-item.active {
+  background: rgba(59, 130, 246, 0.15);
+}
+
+.file-item svg {
+  flex-shrink: 0;
+  color: #64748b;
+}
+
+.file-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #e2e8f0;
+}
+
+.file-path {
+  font-size: 11px;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-menu-empty,
+.file-menu-loading {
+  padding: 16px;
+  text-align: center;
+  font-size: 12px;
+  color: #64748b;
 }
 
 .input-wrapper {
