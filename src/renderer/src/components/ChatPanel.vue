@@ -242,6 +242,16 @@
         </div>
       </div>
 
+      <!-- Binary File Warning -->
+      <div class="binary-warning-toast" v-if="showBinaryWarning">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/>
+          <line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        <span>此文件是二进制文件，无法作为文本引用插入</span>
+      </div>
+
       <!-- Slash Command Menu -->
       <div class="slash-menu" v-if="showSlashMenu">
         <div
@@ -342,6 +352,8 @@ const fileSearchQuery = ref('')
 const fileSearchResults = ref<Array<{ name: string; path: string; isDirectory: boolean }>>([])
 const selectedFileIndex = ref(0)
 const fileSearchLoading = ref(false)
+const showBinaryWarning = ref(false)
+let binaryWarningTimer: ReturnType<typeof setTimeout> | null = null
 let fileSearchDebounce: ReturnType<typeof setTimeout> | null = null
 
 // Image drag & drop state
@@ -441,14 +453,23 @@ async function searchFiles(query: string) {
 
 async function selectFile(file: { name: string; path: string }) {
   try {
-    const content = await window.mimo.file.read(file.path)
+    const result = await window.mimo.file.read(file.path)
+    if (result.isBinary) {
+      // 显示二进制文件警告
+      showBinaryWarning.value = true
+      if (binaryWarningTimer) clearTimeout(binaryWarningTimer)
+      binaryWarningTimer = setTimeout(() => {
+        showBinaryWarning.value = false
+      }, 3000)
+      return
+    }
     const relativePath = file.path.replace(editorStore.rootPath, '').replace(/^[/\\]/, '')
 
     // Replace @query with formatted file reference
     const atIndex = inputText.value.lastIndexOf('@')
     if (atIndex >= 0) {
       const before = inputText.value.substring(0, atIndex)
-      inputText.value = `${before}@${relativePath}\n\`\`\`\n${content}\n\`\`\`\n`
+      inputText.value = `${before}@${relativePath}\n\`\`\`\n${result.content}\n\`\`\`\n`
     }
 
     showFileMenu.value = false
@@ -1517,6 +1538,36 @@ watch(inputText, () => nextTick(autoResize))
   text-align: center;
   font-size: 12px;
   color: #64748b;
+}
+
+.binary-warning-toast {
+  position: absolute;
+  bottom: 100%;
+  left: 12px;
+  right: 12px;
+  background: #1e293b;
+  border: 1px solid #f59e0b;
+  border-radius: 8px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #fbbf24;
+  z-index: 20;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+  animation: slideUp 0.2s ease;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Pending Images */

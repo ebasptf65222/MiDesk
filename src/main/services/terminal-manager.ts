@@ -5,6 +5,8 @@ export interface TerminalSession {
   id: string
   process: pty.IPty
   shell: string
+  onDataDisposable?: { dispose: () => void }
+  onExitDisposable?: { dispose: () => void }
 }
 
 export class TerminalManager {
@@ -55,6 +57,9 @@ export class TerminalManager {
   destroySession(id: string): void {
     const session = this.sessions.get(id)
     if (session) {
+      // Remove event listeners to prevent sending to destroyed WebContents
+      session.onDataDisposable?.dispose()
+      session.onExitDisposable?.dispose()
       session.process.kill()
       this.sessions.delete(id)
     }

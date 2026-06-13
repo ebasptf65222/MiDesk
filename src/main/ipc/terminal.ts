@@ -9,13 +9,20 @@ export function registerTerminalIPC(): void {
     const session = terminalManager.createSession(id, cwd)
     const webContents = event.sender
 
-    session.process.onData((data: string) => {
-      webContents.send('mimo:terminal:output', id, data)
-    })
+    const onDataHandler = (data: string) => {
+      if (!webContents.isDestroyed()) {
+        webContents.send('mimo:terminal:output', id, data)
+      }
+    }
 
-    session.process.onExit(({ exitCode }) => {
-      webContents.send('mimo:terminal:exit', id, exitCode)
-    })
+    const onExitHandler = ({ exitCode }: { exitCode: number }) => {
+      if (!webContents.isDestroyed()) {
+        webContents.send('mimo:terminal:exit', id, exitCode)
+      }
+    }
+
+    session.onDataDisposable = session.process.onData(onDataHandler)
+    session.onExitDisposable = session.process.onExit(onExitHandler)
 
     return { id, shell: session.shell }
   })

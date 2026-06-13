@@ -36,6 +36,16 @@
       </div>
     </div>
   </div>
+  <div class="editor-empty" v-else-if="editorStore.activeFile?.isBinary">
+    <div class="binary-warning">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.5" class="warning-icon">
+        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/>
+        <line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+      <p class="warning-text">此文件是二进制文件或使用了不受支持的文本编码，所以无法在文本编辑器中显示。</p>
+    </div>
+  </div>
   <div class="editor-empty" v-else>
     <div class="empty-content">
       <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="empty-icon">

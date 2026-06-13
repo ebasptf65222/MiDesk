@@ -9,6 +9,38 @@ export interface FileEntry {
   modified: number
 }
 
+// 常见的二进制文件扩展名
+const BINARY_EXTENSIONS = new Set([
+  // 压缩文件
+  '.zip', '.rar', '.7z', '.tar', '.gz', '.bz2', '.xz',
+  // 图片
+  '.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.webp', '.svg',
+  // 文档
+  '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+  // 可执行文件
+  '.exe', '.dll', '.so', '.dylib', '.bin',
+  // 音视频
+  '.mp3', '.mp4', '.avi', '.mov', '.wav', '.flac', '.ogg',
+  // 数据库
+  '.db', '.sqlite', '.sqlite3',
+  // 其他二进制
+  '.class', '.o', '.obj', '.lib', '.a',
+  '.woff', '.woff2', '.ttf', '.eot',
+  '.psd', '.ai', '.sketch',
+])
+
+// 检查文件是否为二进制文件
+function isBinaryFile(filePath: string): boolean {
+  const ext = path.extname(filePath).toLowerCase()
+  return BINARY_EXTENSIONS.has(ext)
+}
+
+export interface ReadFileResult {
+  content: string
+  isBinary: boolean
+  error?: string
+}
+
 export async function listDirectory(dirPath: string): Promise<FileEntry[]> {
   const entries = await fs.readdir(dirPath, { withFileTypes: true })
   const result: FileEntry[] = []
@@ -39,8 +71,29 @@ export async function listDirectory(dirPath: string): Promise<FileEntry[]> {
   return result
 }
 
-export async function readFile(filePath: string): Promise<string> {
-  return fs.readFile(filePath, 'utf-8')
+export async function readFile(filePath: string): Promise<ReadFileResult> {
+  // 先检查是否为二进制文件
+  if (isBinaryFile(filePath)) {
+    return {
+      content: '',
+      isBinary: true,
+      error: '二进制文件无法在编辑器中显示'
+    }
+  }
+
+  try {
+    const content = await fs.readFile(filePath, 'utf-8')
+    return {
+      content,
+      isBinary: false
+    }
+  } catch (error) {
+    return {
+      content: '',
+      isBinary: false,
+      error: error instanceof Error ? error.message : '读取文件失败'
+    }
+  }
 }
 
 export async function writeFile(filePath: string, content: string): Promise<void> {

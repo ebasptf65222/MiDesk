@@ -8,6 +8,7 @@ export interface FileTab {
   content: string
   originalContent: string
   isModified: boolean
+  isBinary?: boolean
 }
 
 export interface FileEntry {
@@ -42,16 +43,17 @@ export const useEditorStore = defineStore('editor', () => {
       return existing
     }
 
-    const content = await window.mimo.file.read(filePath)
+    const result = await window.mimo.file.read(filePath)
     const name = filePath.split(/[/\\]/).pop() || filePath
 
     const tab: FileTab = {
       id: `file-${Date.now()}`,
       name,
       path: filePath,
-      content,
-      originalContent: content,
-      isModified: false
+      content: result.content,
+      originalContent: result.content,
+      isModified: false,
+      isBinary: result.isBinary
     }
 
     openFiles.value.push(tab)
