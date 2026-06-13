@@ -1,0 +1,104 @@
+import { spawn } from 'child_process'
+
+export interface GitStatus {
+  branch: string
+  isDirty: boolean
+  files: GitFile[]
+}
+
+export interface GitFile {
+  status: string
+  path: string
+}
+
+async function execGit(args: string[], cwd: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('git', args, {
+      cwd,
+      stdio: ['pipe', 'pipe', 'pipe']
+    })
+
+    let stdout = ''
+    let stderr = ''
+
+    proc.stdout?.on('data', (data) => {
+      stdout += data.toString()
+    })
+
+    proc.stderr?.on('data', (data) => {
+      stderr += data.toString()
+    })
+
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve(stdout.trim())
+      } else {
+        reject(new Error(stderr || 'Git command failed'))
+      }
+    })
+
+    proc.on('error', (err) => {
+      reject(err)
+    })
+  })
+}
+
+export async function getGitStatus(cwd: string): Promise<GitStatus | null> {
+  try {
+    // Check if it's a git repo
+    await execGit(['rev-parse', '--git-dir'], cwd)
+
+    // Get branch name
+    const branch = await execGit(['branch', '--show-current'], cwd)
+
+    // Get status
+    const statusOutput = await execGit(['status', '--porcelain'], cwd)
+
+    const files: GitFile[] = statusOutput
+      .split('\n')
+      .filter(line => line.trim())
+      .map(line => ({
+        status: line.substring(0, 2).trim(),
+        path: line.substring(3).trim()
+      }))
+
+    return {
+      branch,
+      isDirty: files.length > 0,
+      files
+    }
+  } catch {
+    return null
+  }
+}
+
+export async function gitCommit(cwd: string, message: string): Promise<boolean> {
+  try {
+    await execGit(['add', '-A'], cwd)
+    await execGit(['commit', '-m', message], cwd)
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function gitDiff(cwd: string, filePath?: string): Promise<string> {
+  try {
+    const args = ['diff']
+    if (filePath) {
+      args.push(filePath)
+    }
+    return await execGit(args, cwd)
+  } catch {
+    return ''
+  }
+}
+
+export async function gitLog(cwd: string, count: number = 10): Promise<string[]> {
+  try {
+    const output = await execGit(['log', `--oneline`, `-n`, count.toString()], cwd)
+    return output.split('\n').filter(line => line.trim())
+  } catch {
+    return []
+  }
+}

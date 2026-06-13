@@ -1,0 +1,104 @@
+{
+  "name": "mimo-desktop",
+  "version": "0.1.0",
+  "description": "MiMo Code Desktop - AI-powered coding assistant",
+  "main": "./out/main/index.js",
+  "mimoCli": {
+    "downloadUrl": "https://github.com/XiaomiMiMo/MiMo-Code/releases/download/v0.1.0/mimocode-windows-x64.zip",
+    "filename": "mimo.exe"
+  },
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "postinstall": "electron-builder install-app-deps",
+    "package": "electron-builder --win --publish never",
+    "package:mac": "electron-builder --mac --publish never",
+    "package:linux": "electron-builder --linux --publish never"
+  },
+  "build": {
+    "appId": "com.mimo.desktop",
+    "productName": "MiMo Code",
+    "publish": {
+      "provider": "github",
+      "owner": "XiaomiMiMo",
+      "repo": "MiMo-Code"
+    },
+    "directories": {
+      "output": "release"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MiMo Code"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "resources/icon.icns",
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "resources/icon.png",
+      "category": "Development"
+    }
+  },
+  "dependencies": {
+    "@electron-toolkit/utils": "^4.0.0",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/xterm": "^6.0.0",
+    "diff": "^9.0.0",
+    "electron-updater": "^6.8.9",
+    "gsap": "^3.15.0",
+    "highlight.js": "^11.11.1",
+    "markdown-it": "^14.2.0",
+    "markstream-vue": "^1.0.1",
+    "pinia": "^3.0.4",
+    "stream-markdown-parser": "^1.0.5"
+  },
+  "devDependencies": {
+    "@electron-toolkit/preload": "^3.0.2",
+    "@vitejs/plugin-vue": "^6.0.0",
+    "electron": "^42.0.0",
+    "electron-builder": "^26.0.0",
+    "electron-vite": "^5.0.0",
+    "typescript": "^5.5.0",
+    "vite": "^7.0.0",
+    "vue": "^3.5.0"
+  }
+}
