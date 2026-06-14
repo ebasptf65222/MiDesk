@@ -732,6 +732,24 @@ function autoResize() {
   inputEl.value.style.height = Math.min(inputEl.value.scrollHeight, 150) + 'px'
 }
 
+function handleSendWithImages() {
+  if (chatStore.isStreaming) return
+
+  const text = inputText.value.trim()
+  if (!text && pendingImages.value.length === 0) return
+
+  let message = text
+  if (pendingImages.value.length > 0) {
+    const imageInfo = pendingImages.value.map(img => `[图片: ${img.name}]`).join('\n')
+    message = message ? `${message}\n${imageInfo}` : imageInfo
+  }
+
+  chatStore.send(message)
+  inputText.value = ''
+  pendingImages.value = []
+  nextTick(autoResize)
+}
+
 function handleRetry(part: MessagePart) {
   console.log('Retry:', part)
 }
