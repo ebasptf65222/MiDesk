@@ -97,86 +97,15 @@
       </div>
     </div>
 
-    <div class="chat-messages" ref="messagesContainer">
-      <div v-if="chatStore.messages.length === 0" class="empty-state">
-        <div class="empty-icon">
-          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-          </svg>
-        </div>
-        <p>开始对话</p>
-        <span>问我任何关于代码的问题</span>
-      </div>
+    <MessageList
+      :messages="chatStore.messages"
+      :is-streaming="chatStore.isStreaming"
+      :show-thinking="showThinking"
+      @retry="handleRetry"
+      @dismiss="handleDismiss"
+    />
 
-      <div
-        v-for="msg in chatStore.messages"
-        :key="msg.id"
-        :class="['message', msg.role]"
-      >
-        <div class="message-avatar">
-          <span v-if="msg.role === 'user'">U</span>
-          <span v-else>M</span>
-        </div>
-        <div class="message-body">
-          <template v-for="(part, idx) in msg.parts" :key="idx">
-            <!-- Thinking block -->
-            <div v-if="part.type === 'thinking' && showThinking" class="thinking-block">
-              <div class="thinking-header" @click="toggleThinking(idx)">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="12" cy="12" r="10"/>
-                  <path d="M12 16v-4M12 8h.01"/>
-                </svg>
-                <span>思考过程</span>
-                <svg :class="['chevron', { expanded: expandedThinkings.has(idx) }]" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <polyline points="6,9 12,15 18,9"/>
-                </svg>
-              </div>
-              <div v-if="expandedThinkings.has(idx)" class="thinking-content">
-                {{ part.content }}
-              </div>
-            </div>
-
-            <!-- Text block -->
-            <div v-else-if="part.type === 'text'" class="text-content">
-              <MarkdownRender
-                :content="msg.accumulatedText"
-                :max-live-nodes="0"
-                :render-batch-size="16"
-                :render-batch-delay="8"
-                :final="!chatStore.isStreaming"
-              />
-            </div>
-
-            <!-- Tool use block -->
-            <div v-else-if="part.type === 'tool_use'" class="tool-block tool-use">
-              <div class="tool-header">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/>
-                </svg>
-                <span>工具调用</span>
-              </div>
-              <div class="tool-content">{{ formatToolUse(part.content) }}</div>
-            </div>
-
-            <!-- Tool result block -->
-            <div v-else-if="part.type === 'tool_result'" class="tool-block tool-result">
-              <div class="tool-header">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M22 11.08V12a10 10 0 11-5.93-9.14"/>
-                  <polyline points="22,4 12,14.01 9,11.01"/>
-                </svg>
-                <span>工具结果</span>
-              </div>
-              <div class="tool-content">{{ formatToolResult(part.content) }}</div>
-            </div>
-          </template>
-        </div>
-      </div>
-
-      <div v-if="chatStore.isStreaming" class="typing-indicator">
-        <span></span><span></span><span></span>
-      </div>
-    </div>
+    <ConfirmationBar />
 
     <div
       class="chat-input-area"
@@ -308,8 +237,9 @@
 import { ref, nextTick, watch, onMounted, computed } from 'vue'
 import { useChatStore } from '../stores/chat'
 import { useEditorStore } from '../stores/editor'
-import MarkdownRender from 'markstream-vue'
-import 'markstream-vue/index.css'
+import MessageList from './chat/MessageList.vue'
+import ConfirmationBar from './chat/ConfirmationBar.vue'
+import type { MessagePart } from '../types/chat'
 
 interface Session {
   id: string
@@ -337,13 +267,11 @@ const chatStore = useChatStore()
 const editorStore = useEditorStore()
 const inputText = ref('')
 const inputEl = ref<HTMLTextAreaElement>()
-const messagesContainer = ref<HTMLDivElement>()
 const showSessions = ref(false)
 const sessions = ref<Session[]>([])
 const currentSessionId = ref<string | null>(null)
 const showSlashMenu = ref(false)
 const selectedCommandIndex = ref(0)
-const expandedThinkings = ref(new Set<number>())
 const customCommands = ref<CustomCommand[]>([])
 
 // @ file reference state
@@ -755,226 +683,19 @@ function formatTime(timestamp: number): string {
   return date.toLocaleDateString('zh-CN')
 }
 
-function toggleThinking(idx: number) {
-  if (expandedThinkings.value.has(idx)) {
-    expandedThinkings.value.delete(idx)
-  } else {
-    expandedThinkings.value.add(idx)
-  }
-}
-
-function formatToolUse(content: string): string {
-  try {
-    const parsed = JSON.parse(content)
-    return parsed.name || content
-  } catch {
-    return content
-  }
-}
-
-function formatToolResult(content: string): string {
-  try {
-    const parsed = JSON.parse(content)
-    return JSON.stringify(parsed, null, 2).substring(0, 500) + (parsed.length > 500 ? '...' : '')
-  } catch {
-    return content.substring(0, 500) + (content.length > 500 ? '...' : '')
-  }
-}
-
-onMounted(() => {
-  loadSessionList()
-  chatStore.initMode()
-  loadCustomCommands()
-})
-
-async function loadCustomCommands() {
-  try {
-    customCommands.value = await window.mimo.commands.list()
-  } catch (err) {
-    console.error('Failed to load custom commands:', err)
-    customCommands.value = []
-  }
-}
-
-// Image drag & drop handlers
-function handleDragEnter(e: DragEvent) {
-  e.preventDefault()
-  isDragging.value = true
-}
-
-function handleDragOver(e: DragEvent) {
-  e.preventDefault()
-  isDragging.value = true
-}
-
-function handleDragLeave(e: DragEvent) {
-  e.preventDefault()
-  isDragging.value = false
-}
-
-async function handleDrop(e: DragEvent) {
-  e.preventDefault()
-  isDragging.value = false
-
-  const files = e.dataTransfer?.files
-  if (!files) return
-
-  for (const file of Array.from(files)) {
-    if (file.type.startsWith('image/')) {
-      const reader = new FileReader()
-      reader.onload = (event) => {
-        const dataUrl = event.target?.result as string
-        pendingImages.value.push({
-          name: file.name,
-          data: dataUrl,
-          preview: dataUrl
-        })
-      }
-      reader.readAsDataURL(file)
-    }
-  }
-}
-
-function removePendingImage(index: number) {
-  pendingImages.value.splice(index, 1)
-}
-
-async function handleSendWithImages() {
-  if (!inputText.value.trim() && pendingImages.value.length === 0) return
-
-  let message = inputText.value
-  if (pendingImages.value.length > 0) {
-    const imageRefs = pendingImages.value.map((img, i) => `[Image #${i + 1}] ${img.name}`).join('\n')
-    message = `${imageRefs}\n\n${message}`.trim()
-  }
-
-  chatStore.send(message)
-  inputText.value = ''
-  pendingImages.value = []
-  nextTick(() => autoResize())
-}
-
-function handleKeydown(e: KeyboardEvent) {
-  // File menu navigation
-  if (showFileMenu.value) {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      selectedFileIndex.value = Math.min(
-        selectedFileIndex.value + 1,
-        fileSearchResults.value.length - 1
-      )
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      selectedFileIndex.value = Math.max(selectedFileIndex.value - 1, 0)
-    } else if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      if (fileSearchResults.value[selectedFileIndex.value]) {
-        selectFile(fileSearchResults.value[selectedFileIndex.value])
-      }
-      return
-    } else if (e.key === 'Escape') {
-      showFileMenu.value = false
-      return
-    }
-  }
-
-  // Slash menu navigation
-  if (showSlashMenu.value) {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      selectedCommandIndex.value = Math.min(
-        selectedCommandIndex.value + 1,
-        filteredCommands.value.length - 1
-      )
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      selectedCommandIndex.value = Math.max(selectedCommandIndex.value - 1, 0)
-    } else if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      if (filteredCommands.value[selectedCommandIndex.value]) {
-        executeCommand(filteredCommands.value[selectedCommandIndex.value])
-      }
-      return
-    } else if (e.key === 'Escape') {
-      showSlashMenu.value = false
-      return
-    }
-  }
-
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault()
-    handleSend()
-  }
-}
-
-function handleSend() {
-  if (!inputText.value.trim()) return
-
-  // Check for ! shell command
-  if (inputText.value.startsWith('!')) {
-    const command = inputText.value.substring(1).trim()
-    if (command) {
-      executeShellCommand(command)
-      inputText.value = ''
-      nextTick(() => autoResize())
-      return
-    }
-  }
-
-  chatStore.send(inputText.value)
-  inputText.value = ''
-  nextTick(() => autoResize())
-}
-
-async function executeShellCommand(command: string) {
-  const userMsg = {
-    id: `msg-${Date.now()}`,
-    role: 'user' as const,
-    parts: [{ type: 'text' as const, content: `!${command}` }],
-    content: `!${command}`,
-    accumulatedText: `!${command}`,
-    timestamp: Date.now()
-  }
-  chatStore.messages.push(userMsg)
-
-  const assistantMsg = {
-    id: `msg-${Date.now()}-assistant`,
-    role: 'assistant' as const,
-    parts: [{ type: 'text' as const, content: '' }],
-    content: '',
-    accumulatedText: '',
-    timestamp: Date.now()
-  }
-  chatStore.messages.push(assistantMsg)
-
-  try {
-    const result = await window.mimo.terminal.execute(command, editorStore.rootPath || process.cwd())
-    assistantMsg.accumulatedText = result || '命令执行完成'
-    assistantMsg.content = assistantMsg.accumulatedText
-    assistantMsg.parts[0].content = assistantMsg.accumulatedText
-  } catch (err) {
-    assistantMsg.accumulatedText = `命令执行失败: ${err}`
-    assistantMsg.content = assistantMsg.accumulatedText
-    assistantMsg.parts[0].content = assistantMsg.accumulatedText
-  }
-}
-
 function autoResize() {
   if (!inputEl.value) return
   inputEl.value.style.height = 'auto'
   inputEl.value.style.height = Math.min(inputEl.value.scrollHeight, 150) + 'px'
 }
 
-watch(
-  () => chatStore.messages.length,
-  () => {
-    nextTick(() => {
-      if (messagesContainer.value) {
-        messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-      }
-    })
-  }
-)
+function handleRetry(part: MessagePart) {
+  console.log('Retry:', part)
+}
+
+function handleDismiss(part: MessagePart) {
+  console.log('Dismiss:', part)
+}
 
 watch(inputText, () => nextTick(autoResize))
 </script>
@@ -1179,244 +900,6 @@ watch(inputText, () => nextTick(autoResize))
 .clear-btn:hover {
   color: #94a3b8;
   background: #334155;
-}
-
-.chat-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.empty-state {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: #475569;
-}
-
-.empty-icon {
-  margin-bottom: 12px;
-  color: #334155;
-}
-
-.empty-state p {
-  font-size: 15px;
-  color: #64748b;
-  margin-bottom: 4px;
-}
-
-.empty-state span {
-  font-size: 12px;
-}
-
-.message {
-  display: flex;
-  gap: 10px;
-  animation: fadeIn 0.2s ease;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.message-avatar {
-  width: 28px;
-  height: 28px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 600;
-  flex-shrink: 0;
-  margin-top: 2px;
-}
-
-.message.user .message-avatar {
-  background: #3b82f6;
-  color: white;
-}
-
-.message.assistant .message-avatar {
-  background: #8b5cf6;
-  color: white;
-}
-
-.message-content {
-  flex: 1;
-  font-size: 13px;
-  line-height: 1.6;
-  color: #e2e8f0;
-  overflow-wrap: break-word;
-}
-
-.message-body {
-  flex: 1;
-  min-width: 0;
-}
-
-.thinking-block {
-  margin-bottom: 8px;
-  border: 1px solid rgba(139, 92, 246, 0.3);
-  border-radius: 6px;
-  background: rgba(139, 92, 246, 0.05);
-}
-
-.thinking-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  font-size: 12px;
-  color: #a78bfa;
-  cursor: pointer;
-  user-select: none;
-}
-
-.thinking-header:hover {
-  background: rgba(139, 92, 246, 0.1);
-}
-
-.thinking-header svg {
-  flex-shrink: 0;
-}
-
-.thinking-header span {
-  flex: 1;
-}
-
-.chevron {
-  transition: transform 0.2s;
-}
-
-.chevron.expanded {
-  transform: rotate(180deg);
-}
-
-.thinking-content {
-  padding: 0 12px 10px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: #94a3b8;
-  white-space: pre-wrap;
-  border-top: 1px solid rgba(139, 92, 246, 0.2);
-}
-
-.text-content {
-  font-size: 13px;
-  line-height: 1.6;
-  color: #e2e8f0;
-  overflow-wrap: break-word;
-  width: 100%;
-  min-width: 0;
-}
-
-.text-content :deep(.markdown-render) {
-  width: 100%;
-}
-
-.tool-block {
-  margin-bottom: 8px;
-  border: 1px solid rgba(71, 85, 105, 0.3);
-  border-radius: 6px;
-  background: rgba(71, 85, 105, 0.1);
-}
-
-.tool-header {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  font-size: 12px;
-  color: #94a3b8;
-  border-bottom: 1px solid rgba(71, 85, 105, 0.2);
-}
-
-.tool-use .tool-header {
-  color: #60a5fa;
-}
-
-.tool-result .tool-header {
-  color: #34d399;
-}
-
-.tool-content {
-  padding: 8px 12px;
-  font-size: 12px;
-  line-height: 1.4;
-  color: #94a3b8;
-  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
-  white-space: pre-wrap;
-  word-break: break-all;
-  max-height: 150px;
-  overflow-y: auto;
-}
-
-.text-content :deep(p) {
-  margin: 0 0 8px;
-}
-
-.text-content :deep(p:last-child) {
-  margin-bottom: 0;
-}
-
-.text-content :deep(pre) {
-  background: #0f172a;
-  border: 1px solid #334155;
-  border-radius: 6px;
-  padding: 12px;
-  margin: 8px 0;
-  overflow-x: auto;
-}
-
-.text-content :deep(code) {
-  font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
-  font-size: 12px;
-}
-
-.text-content :deep(:not(pre) > code) {
-  background: #334155;
-  padding: 2px 5px;
-  border-radius: 3px;
-}
-
-.text-content :deep(ul),
-.text-content :deep(ol) {
-  margin: 8px 0;
-  padding-left: 20px;
-}
-
-.text-content :deep(li) {
-  margin: 4px 0;
-}
-
-.typing-indicator {
-  display: flex;
-  gap: 4px;
-  padding: 8px 12px;
-}
-
-.typing-indicator span {
-  width: 6px;
-  height: 6px;
-  background: #475569;
-  border-radius: 50%;
-  animation: bounce 1.4s infinite ease-in-out;
-}
-
-.typing-indicator span:nth-child(1) { animation-delay: 0s; }
-.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
-.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
-
-@keyframes bounce {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
 }
 
 .chat-input-area {
