@@ -21,8 +21,8 @@
     "productName": "MiMo Code",
     "publish": {
       "provider": "github",
-      "owner": "XiaomiMiMo",
-      "repo": "MiMo-Code"
+      "owner": "YaleBrowning",
+      "repo": "MiDesk"
     },
     "directories": {
       "output": "release"
