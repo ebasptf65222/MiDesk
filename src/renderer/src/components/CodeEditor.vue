@@ -23,7 +23,7 @@
         <div v-for="i in lineCount" :key="i" class="line-num">{{ i }}</div>
       </div>
       <div class="code-area">
-        <pre class="code-highlight" ref="highlightEl"><code v-html="highlightedCode"></code></pre>
+        <pre class="code-highlight" ref="highlightEl"><code class="hljs" v-html="highlightedCode"></code></pre>
         <textarea
           ref="textareaEl"
           class="code-textarea"
@@ -544,13 +544,12 @@ watch(
   padding: 12px;
   background: var(--bg-primary);
   border: none;
-  overflow: auto;
+  overflow: hidden;
   pointer-events: none;
   font-size: 13px;
   line-height: 20px;
   font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace;
   white-space: pre;
-  color: var(--text-primary);
 }
 
 .code-highlight code {

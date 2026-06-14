@@ -710,20 +710,20 @@ button {
 
 /* Input fields - ensure visible */
 input,
-textarea {
+textarea:not(.code-textarea) {
   background: var(--bg-primary) !important;
   color: var(--text-primary) !important;
   border: 1px solid var(--border-color);
 }
 
 input:focus,
-textarea:focus {
+textarea:not(.code-textarea):focus {
   border-color: var(--accent-color) !important;
   outline: none;
 }
 
 input::placeholder,
-textarea::placeholder {
+textarea:not(.code-textarea)::placeholder {
   color: var(--text-muted) !important;
 }
 
