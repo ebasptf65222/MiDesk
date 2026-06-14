@@ -85,7 +85,6 @@ app.whenReady().then(async () => {
     console.log('[App] MiMo CLI already downloaded')
   }
 
-  registerChatIPC()
   registerFileIPC()
   registerTerminalIPC()
   registerSkillsIPC()
@@ -100,6 +99,8 @@ app.whenReady().then(async () => {
   registerCommandsIPC()
 
   const mainWindow = createWindow()
+
+  registerChatIPC(mainWindow)
 
   setupAutoUpdater(mainWindow)
 

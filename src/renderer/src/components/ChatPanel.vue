@@ -234,12 +234,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, watch, onMounted, computed } from 'vue'
+import { ref, nextTick, watch, onMounted, onUnmounted, computed } from 'vue'
 import { useChatStore } from '../stores/chat'
 import { useEditorStore } from '../stores/editor'
+import { usePermissionStore } from '../stores/permission'
 import MessageList from './chat/MessageList.vue'
 import ConfirmationBar from './chat/ConfirmationBar.vue'
-import type { MessagePart } from '../types/chat'
+import type { MessagePart, ConfirmationRequest } from '../types/chat'
 
 interface Session {
   id: string
@@ -265,6 +266,7 @@ interface CustomCommand {
 
 const chatStore = useChatStore()
 const editorStore = useEditorStore()
+const permissionStore = usePermissionStore()
 const inputText = ref('')
 const inputEl = ref<HTMLTextAreaElement>()
 const showSessions = ref(false)
@@ -273,6 +275,24 @@ const currentSessionId = ref<string | null>(null)
 const showSlashMenu = ref(false)
 const selectedCommandIndex = ref(0)
 const customCommands = ref<CustomCommand[]>([])
+
+let removePermissionListener: (() => void) | null = null
+
+onMounted(() => {
+  removePermissionListener = window.mimo.chat.onPermissionRequest((request) => {
+    permissionStore.requestConfirmation({
+      id: request.id,
+      question: `是否允许执行工具 "${request.toolName}"？风险等级: ${request.riskLevel}`,
+      options: [],
+      toolCallId: request.id
+    })
+  })
+})
+
+onUnmounted(() => {
+  removePermissionListener?.()
+  removePermissionListener = null
+})
 
 // @ file reference state
 const showFileMenu = ref(false)
@@ -463,18 +483,24 @@ function executeCommand(cmd: SlashCommand) {
       const builtIn = builtInCommands.filter(c => !c.action.startsWith('compose:'))
       const compose = builtInCommands.filter(c => c.action.startsWith('compose:'))
       const custom = customCommands.value.map(c => ({ name: `/${c.name}`, description: c.description || '自定义命令' }))
+      const helpContent = `## 可用命令\n\n### 基础命令\n${builtIn.map(c => `- **${c.name}** - ${c.description}`).join('\n')}\n\n### Compose 技能命令\n${compose.map(c => `- **${c.name}** - ${c.description}`).join('\n')}${custom.length > 0 ? `\n\n### 自定义命令\n${custom.map(c => `- **${c.name}** - ${c.description}`).join('\n')}` : ''}`
       chatStore.messages.push({
         id: `msg-${Date.now()}`,
         role: 'assistant',
-        content: `## 可用命令\n\n### 基础命令\n${builtIn.map(c => `- **${c.name}** - ${c.description}`).join('\n')}\n\n### Compose 技能命令\n${compose.map(c => `- **${c.name}** - ${c.description}`).join('\n')}${custom.length > 0 ? `\n\n### 自定义命令\n${custom.map(c => `- **${c.name}** - ${c.description}`).join('\n')}` : ''}`,
+        parts: [{ type: 'text', content: helpContent }],
+        content: helpContent,
+        accumulatedText: helpContent,
         timestamp: Date.now()
       })
       break
     case 'model':
+      const modelContent = '当前模型: **MiMo Auto**\n\n可在设置中切换模型'
       chatStore.messages.push({
         id: `msg-${Date.now()}`,
         role: 'assistant',
-        content: '当前模型: **MiMo Auto**\n\n可在设置中切换模型',
+        parts: [{ type: 'text', content: modelContent }],
+        content: modelContent,
+        accumulatedText: modelContent,
         timestamp: Date.now()
       })
       break
@@ -482,28 +508,37 @@ function executeCommand(cmd: SlashCommand) {
       exportChat()
       break
     case 'stats':
+      const statsContent = `## 会话统计\n\n- 消息数量: ${chatStore.messages.length}\n- 当前会话: ${currentSessionId.value || '新会话'}`
       chatStore.messages.push({
         id: `msg-${Date.now()}`,
         role: 'assistant',
-        content: `## 会话统计\n\n- 消息数量: ${chatStore.messages.length}\n- 当前会话: ${currentSessionId.value || '新会话'}`,
+        parts: [{ type: 'text', content: statsContent }],
+        content: statsContent,
+        accumulatedText: statsContent,
         timestamp: Date.now()
       })
       break
     case 'thinking':
       showThinking.value = !showThinking.value
+      const thinkingContent = `思考块显示: **${showThinking.value ? '开启' : '关闭'}**`
       chatStore.messages.push({
         id: `msg-${Date.now()}`,
         role: 'assistant',
-        content: `思考块显示: **${showThinking.value ? '开启' : '关闭'}**`,
+        parts: [{ type: 'text', content: thinkingContent }],
+        content: thinkingContent,
+        accumulatedText: thinkingContent,
         timestamp: Date.now()
       })
       break
     case 'details':
       showToolDetails.value = !showToolDetails.value
+      const detailsContent = `工具详情显示: **${showToolDetails.value ? '开启' : '关闭'}**`
       chatStore.messages.push({
         id: `msg-${Date.now()}`,
         role: 'assistant',
-        content: `工具详情显示: **${showToolDetails.value ? '开启' : '关闭'}**`,
+        parts: [{ type: 'text', content: detailsContent }],
+        content: detailsContent,
+        accumulatedText: detailsContent,
         timestamp: Date.now()
       })
       break
@@ -511,18 +546,24 @@ function executeCommand(cmd: SlashCommand) {
       showSessions.value = !showSessions.value
       break
     case 'themes':
+      const themesContent = '主题切换功能请使用 **Ctrl+,** 打开设置面板'
       chatStore.messages.push({
         id: `msg-${Date.now()}`,
         role: 'assistant',
-        content: '主题切换功能请使用 **Ctrl+,** 打开设置面板',
+        parts: [{ type: 'text', content: themesContent }],
+        content: themesContent,
+        accumulatedText: themesContent,
         timestamp: Date.now()
       })
       break
     case 'init':
+      const initContent = 'AGENTS.md 规则文件初始化功能开发中...'
       chatStore.messages.push({
         id: `msg-${Date.now()}`,
         role: 'assistant',
-        content: 'AGENTS.md 规则文件初始化功能开发中...',
+        parts: [{ type: 'text', content: initContent }],
+        content: initContent,
+        accumulatedText: initContent,
         timestamp: Date.now()
       })
       break
@@ -631,7 +672,9 @@ async function loadSession(id: string) {
         chatStore.messages.push({
           id: `msg-${m.timestamp}`,
           role: m.role as 'user' | 'assistant',
+          parts: [{ type: 'text', content: m.content }],
           content: m.content,
+          accumulatedText: m.content,
           timestamp: m.timestamp
         })
       })

@@ -57,6 +57,28 @@
           @retry="handleRetry(part)"
           @dismiss="handleDismiss(part)"
         />
+
+        <!-- Confirmation block -->
+        <div
+          v-else-if="part.type === 'confirmation'"
+          class="confirmation-block"
+        >
+          <ConfirmationInline :request="parseConfirmation(part.content)" />
+        </div>
+
+        <!-- Progress block -->
+        <div
+          v-else-if="part.type === 'progress'"
+          class="progress-block"
+        >
+          <div class="progress-content">
+            <svg class="progress-spinner" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10" stroke-opacity="0.3"/>
+              <path d="M12 2a10 10 0 019.95 9"/>
+            </svg>
+            <span>{{ part.content }}</span>
+          </div>
+        </div>
       </template>
     </div>
   </div>
@@ -69,7 +91,8 @@ import 'markstream-vue/index.css'
 import ToolCallCard from './ToolCallCard.vue'
 import ToolResultCard from './ToolResultCard.vue'
 import ErrorCard from './ErrorCard.vue'
-import type { Message, MessagePart } from '../../types/chat'
+import ConfirmationInline from './ConfirmationInline.vue'
+import type { Message, MessagePart, ConfirmationRequest } from '../../types/chat'
 
 const props = defineProps<{
   message: Message
@@ -134,6 +157,14 @@ function handleRetry(part: MessagePart) {
 
 function handleDismiss(part: MessagePart) {
   emit('dismiss', part)
+}
+
+function parseConfirmation(content: string): ConfirmationRequest {
+  try {
+    return JSON.parse(content)
+  } catch {
+    return { id: 'unknown', question: content, options: [] }
+  }
 }
 </script>
 
@@ -226,6 +257,35 @@ function handleDismiss(part: MessagePart) {
   color: #94a3b8;
   white-space: pre-wrap;
   border-top: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.confirmation-block {
+  margin: 8px 0;
+}
+
+.progress-block {
+  margin: 6px 0;
+}
+
+.progress-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(59, 130, 246, 0.1);
+  border: 1px solid rgba(59, 130, 246, 0.2);
+  font-size: 12px;
+  color: #93c5fd;
+}
+
+.progress-spinner {
+  animation: spin 1s linear infinite;
+  flex-shrink: 0;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 .text-content {

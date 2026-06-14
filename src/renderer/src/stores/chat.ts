@@ -1,19 +1,8 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
+import type { Message, MessagePart, ToolCallInfo, ConfirmationRequest } from '../types/chat'
 
-export interface MessagePart {
-  type: 'text' | 'thinking' | 'tool_use' | 'tool_result'
-  content: string
-}
-
-export interface Message {
-  id: string
-  role: 'user' | 'assistant' | 'system'
-  parts: MessagePart[]
-  content: string
-  accumulatedText: string
-  timestamp: number
-}
+export type { Message, MessagePart, ToolCallInfo }
 
 export type AgentMode = 'build' | 'plan' | 'compose'
 
@@ -93,7 +82,7 @@ export const useChatStore = defineStore('chat', () => {
     isStreaming.value = true
 
     // Listen for chunks BEFORE sending
-    removeChunkListener = window.mimo.chat.onChunk((chunk: { type: string; content: string }) => {
+    removeChunkListener = window.mimo.chat.onChunk((chunk: { type: string; content: string; metadata?: Record<string, unknown> }) => {
       console.log('[ChatStore] chunk received, type:', chunk.type)
 
       if (currentMessage.value) {
@@ -112,11 +101,39 @@ export const useChatStore = defineStore('chat', () => {
               content: currentMessage.value.accumulatedText
             })
           }
+        } else if (chunk.type === 'confirmation') {
+          try {
+            const request: ConfirmationRequest = JSON.parse(chunk.content)
+            currentMessage.value.parts.push({
+              type: 'confirmation',
+              content: chunk.content,
+              metadata: { confirmationId: request.id }
+            })
+          } catch {
+            currentMessage.value.parts.push({
+              type: 'confirmation',
+              content: chunk.content
+            })
+          }
+        } else if (chunk.type === 'error') {
+          currentMessage.value.parts.push({
+            type: 'error',
+            content: chunk.content
+          })
+          currentMessage.value.status = 'error'
+        } else if (chunk.type === 'progress') {
+          currentMessage.value.parts.push({
+            type: 'progress',
+            content: chunk.content,
+            metadata: chunk.metadata
+          })
+          currentMessage.value.status = 'running'
         } else {
-          // Non-text parts (thinking, tool_use, tool_result) — push as separate parts
+          // Other types (thinking, tool_use, tool_result) — push as separate parts
           currentMessage.value.parts.push({
             type: chunk.type as MessagePart['type'],
-            content: chunk.content
+            content: chunk.content,
+            metadata: chunk.metadata
           })
         }
       }
@@ -163,6 +180,10 @@ export const useChatStore = defineStore('chat', () => {
     currentMessage.value = null
   }
 
+  async function respondToConfirmation(id: string, approved: boolean, selectedOption?: string) {
+    await window.mimo.chat.confirmResponse({ id, approved, selectedOption })
+  }
+
   async function undo() {
     if (isStreaming.value) return
 
@@ -189,7 +210,7 @@ export const useChatStore = defineStore('chat', () => {
 
     isStreaming.value = true
 
-    removeChunkListener = window.mimo.chat.onChunk((chunk: { type: string; content: string }) => {
+    removeChunkListener = window.mimo.chat.onChunk((chunk: { type: string; content: string; metadata?: Record<string, unknown> }) => {
       if (currentMessage.value) {
         if (chunk.type === 'text') {
           currentMessage.value.accumulatedText += chunk.content
@@ -201,6 +222,8 @@ export const useChatStore = defineStore('chat', () => {
           } else {
             parts.push({ type: 'text', content: currentMessage.value.accumulatedText })
           }
+        } else if (chunk.type === 'error') {
+          currentMessage.value.parts.push({ type: 'error', content: chunk.content })
         }
       }
     })
@@ -244,7 +267,7 @@ export const useChatStore = defineStore('chat', () => {
 
     isStreaming.value = true
 
-    removeChunkListener = window.mimo.chat.onChunk((chunk: { type: string; content: string }) => {
+    removeChunkListener = window.mimo.chat.onChunk((chunk: { type: string; content: string; metadata?: Record<string, unknown> }) => {
       if (currentMessage.value) {
         if (chunk.type === 'text') {
           currentMessage.value.accumulatedText += chunk.content
@@ -256,6 +279,8 @@ export const useChatStore = defineStore('chat', () => {
           } else {
             parts.push({ type: 'text', content: currentMessage.value.accumulatedText })
           }
+        } else if (chunk.type === 'error') {
+          currentMessage.value.parts.push({ type: 'error', content: chunk.content })
         }
       }
     })
@@ -273,5 +298,5 @@ export const useChatStore = defineStore('chat', () => {
     }
   }
 
-  return { messages, isStreaming, currentMessage, mode, send, stop, clear, setMode, initMode, undo, redo }
+  return { messages, isStreaming, currentMessage, mode, send, stop, clear, setMode, initMode, undo, redo, respondToConfirmation }
 })

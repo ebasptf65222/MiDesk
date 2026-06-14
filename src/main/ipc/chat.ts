@@ -4,10 +4,14 @@ import { downloader } from '../services/downloader'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as os from 'os'
+import type { BrowserWindow } from 'electron'
 
 let activeProcess: ReturnType<typeof spawn> | null = null
 let currentCwd: string = process.cwd()
 let currentAgent: string = 'build'
+let mainWindow: BrowserWindow | null = null
+
+const pendingPermissionResponses = new Map<string, { resolve: (value: boolean) => void }>()
 
 const CONFIG_FILE = path.join(os.homedir(), '.mimo-desktop', 'config.json')
 
@@ -45,7 +49,8 @@ function resolveCLIPath(): string {
   return 'mimo'
 }
 
-export function registerChatIPC(): void {
+export function registerChatIPC(win?: BrowserWindow): void {
+  if (win) mainWindow = win
   ipcMain.handle('mimo:chat:setCwd', (_event, dirPath: string) => {
     currentCwd = dirPath
     console.log('[Chat] CWD set to:', dirPath)
@@ -58,6 +63,24 @@ export function registerChatIPC(): void {
 
   ipcMain.handle('mimo:chat:getAgent', () => {
     return currentAgent
+  })
+
+  ipcMain.handle('mimo:chat:confirmResponse', (_event, response: { id: string; approved: boolean; selectedOption?: string }) => {
+    console.log('[Chat] Confirmation response:', response)
+    const pending = pendingPermissionResponses.get(response.id)
+    if (pending) {
+      pending.resolve(response.approved)
+      pendingPermissionResponses.delete(response.id)
+    }
+  })
+
+  ipcMain.handle('mimo:chat:permissionResponse', (_event, response: { id: string; approved: boolean }) => {
+    console.log('[Chat] Permission response:', response)
+    const pending = pendingPermissionResponses.get(response.id)
+    if (pending) {
+      pending.resolve(response.approved)
+      pendingPermissionResponses.delete(response.id)
+    }
   })
 
   ipcMain.handle('mimo:chat:send', async (event, message: string) => {
@@ -149,6 +172,41 @@ export function registerChatIPC(): void {
                 case 'tool_result':
                   if (evt.part) {
                     webContents.send('mimo:chat:chunk', { type: 'tool_result', content: JSON.stringify(evt.part) })
+                  }
+                  break
+                case 'confirmation':
+                  if (evt.part) {
+                    webContents.send('mimo:chat:chunk', { type: 'confirmation', content: JSON.stringify(evt.part) })
+                  }
+                  break
+                case 'permission_request':
+                  if (evt.part) {
+                    const requestId = evt.part.id || `perm-${Date.now()}`
+                    const requestPromise = new Promise<boolean>((resolve) => {
+                      pendingPermissionResponses.set(requestId, { resolve })
+                    })
+                    webContents.send('mimo:chat:permissionRequest', {
+                      id: requestId,
+                      toolName: evt.part.name || evt.part.toolName || 'unknown',
+                      toolArgs: evt.part.args || evt.part.toolArgs || {},
+                      riskLevel: evt.part.riskLevel || 'medium'
+                    })
+                    requestPromise.then((approved) => {
+                      if (activeProcess && !activeProcess.killed && activeProcess.stdin && !activeProcess.stdin.destroyed) {
+                        const response = { approved, requestId }
+                        activeProcess.stdin.write(JSON.stringify(response) + '\n')
+                      }
+                    })
+                  }
+                  break
+                case 'error':
+                  if (evt.part) {
+                    webContents.send('mimo:chat:chunk', { type: 'error', content: JSON.stringify(evt.part) })
+                  }
+                  break
+                case 'progress':
+                  if (evt.part) {
+                    webContents.send('mimo:chat:chunk', { type: 'progress', content: JSON.stringify(evt.part), metadata: evt.metadata })
                   }
                   break
                 default:

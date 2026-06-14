@@ -8,8 +8,8 @@ const mimoAPI = {
       return electronAPI.ipcRenderer.invoke('mimo:chat:send', message)
     },
     setCwd: (dirPath: string) => electronAPI.ipcRenderer.invoke('mimo:chat:setCwd', dirPath),
-    onChunk: (callback: (chunk: { type: string; content: string }) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, chunk: { type: string; content: string }) => {
+    onChunk: (callback: (chunk: { type: string; content: string; metadata?: Record<string, unknown> }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, chunk: { type: string; content: string; metadata?: Record<string, unknown> }) => {
         console.log('[Preload] chunk received, type:', chunk.type)
         callback(chunk)
       }
@@ -28,7 +28,18 @@ const mimoAPI = {
     undo: () => electronAPI.ipcRenderer.invoke('mimo:chat:undo'),
     redo: () => electronAPI.ipcRenderer.invoke('mimo:chat:redo'),
     setAgent: (agent: string) => electronAPI.ipcRenderer.invoke('mimo:chat:setAgent', agent),
-    getAgent: () => electronAPI.ipcRenderer.invoke('mimo:chat:getAgent')
+    getAgent: () => electronAPI.ipcRenderer.invoke('mimo:chat:getAgent'),
+    confirmResponse: (response: { id: string; approved: boolean; selectedOption?: string }) =>
+      electronAPI.ipcRenderer.invoke('mimo:chat:confirmResponse', response),
+    onPermissionRequest: (callback: (request: { id: string; toolName: string; toolArgs: Record<string, unknown>; riskLevel: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, request: { id: string; toolName: string; toolArgs: Record<string, unknown>; riskLevel: string }) => {
+        callback(request)
+      }
+      electronAPI.ipcRenderer.on('mimo:chat:permissionRequest', handler)
+      return () => electronAPI.ipcRenderer.removeListener('mimo:chat:permissionRequest', handler)
+    },
+    permissionResponse: (response: { id: string; approved: boolean }) =>
+      electronAPI.ipcRenderer.invoke('mimo:chat:permissionResponse', response)
   },
   file: {
     list: (dirPath: string) => electronAPI.ipcRenderer.invoke('mimo:file:list', dirPath),
