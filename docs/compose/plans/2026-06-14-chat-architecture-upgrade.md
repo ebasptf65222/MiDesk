@@ -1,5 +1,10 @@
 # Chat Architecture Upgrade Implementation Plan
 
+> [!NOTE]
+> This document may not reflect the current implementation.
+> See the final report for up-to-date state:
+> [Final Report](../reports/chat-architecture-upgrade.md)
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use compose:subagent (recommended) or compose:execute to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Upgrade the chat architecture to support message type registry, permission middleware, improved tool call display, user confirmation, error handling, and progress display.
