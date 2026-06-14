@@ -1,4 +1,6 @@
 import { spawn } from 'child_process'
+import * as fs from 'fs'
+import * as path from 'path'
 
 export interface GitStatus {
   branch: string
@@ -82,15 +84,38 @@ export async function gitCommit(cwd: string, message: string): Promise<boolean> 
   }
 }
 
-export async function gitDiff(cwd: string, filePath?: string): Promise<string> {
+export interface GitDiffResult {
+  original: string
+  modified: string
+}
+
+export async function gitDiff(cwd: string, filePath?: string): Promise<GitDiffResult | null> {
   try {
-    const args = ['diff']
-    if (filePath) {
-      args.push(filePath)
+    if (!filePath) {
+      return null
     }
-    return await execGit(args, cwd)
+
+    // 直接从 git 获取原始内容（HEAD 版本）
+    let original = ''
+    try {
+      original = await execGit(['show', `HEAD:${filePath}`], cwd)
+    } catch {
+      // 文件可能是新文件（未跟踪）
+      original = ''
+    }
+
+    // 直接从文件系统读取当前内容
+    let modified = ''
+    try {
+      modified = fs.readFileSync(path.join(cwd, filePath), 'utf-8')
+    } catch {
+      // 文件可能已被删除
+      modified = ''
+    }
+
+    return { original, modified }
   } catch {
-    return ''
+    return null
   }
 }
 

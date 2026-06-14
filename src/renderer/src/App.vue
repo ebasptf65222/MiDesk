@@ -14,7 +14,7 @@
     <div class="app-container">
       <aside class="sidebar" v-show="showSidebar">
         <FileTree v-if="activeTab === 'files'" class="sidebar-tree" />
-        <GitPanel v-if="activeTab === 'git'" class="sidebar-tree" />
+        <GitPanel v-if="activeTab === 'git'" class="sidebar-tree" @switch-tab="handleSwitchTab" />
         <div class="settings-sidebar" v-if="activeTab === 'settings'">
           <nav class="settings-nav">
             <button
@@ -159,6 +159,10 @@ const activeTab = ref('files')
 
 function toggleSidebar() {
   showSidebar.value = !showSidebar.value
+}
+
+function handleSwitchTab(tab: string) {
+  activeTab.value = tab
 }
 const currentTheme = ref<'dark' | 'light' | 'system'>('dark')
 const currentColorTheme = ref<string>('default')

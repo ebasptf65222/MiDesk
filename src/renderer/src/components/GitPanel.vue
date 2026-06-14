@@ -27,7 +27,8 @@
         <div
           v-for="file in gitStatus.files"
           :key="file.path"
-          class="file-item"
+          :class="['file-item', { selected: selectedFile === file.path }]"
+          @click="handleFileClick(file.path)"
         >
           <span :class="['status-badge', file.status]">{{ file.status }}</span>
           <span class="file-path">{{ file.path }}</span>
@@ -65,6 +66,11 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from 'vue'
 import { useEditorStore } from '../stores/editor'
+import { useDiffStore } from '../stores/diff'
+
+const emit = defineEmits<{
+  (e: 'switch-tab', tab: string): void
+}>()
 
 interface GitFile {
   status: string
@@ -78,9 +84,11 @@ interface GitStatus {
 }
 
 const editorStore = useEditorStore()
+const diffStore = useDiffStore()
 const gitStatus = ref<GitStatus | null>(null)
 const showCommitDialog = ref(false)
 const commitMessage = ref('')
+const selectedFile = ref<string | null>(null)
 
 async function refreshGitStatus() {
   if (!editorStore.rootPath) {
@@ -94,6 +102,26 @@ async function refreshGitStatus() {
   } catch (err) {
     console.error('Failed to get git status:', err)
     gitStatus.value = null
+  }
+}
+
+async function handleFileClick(filePath: string) {
+  try {
+    // Update selected file
+    selectedFile.value = filePath
+    
+    // Get diff for the file
+    const diffResult = await window.mimo.git.diff(filePath)
+    
+    if (diffResult && diffResult.original !== diffResult.modified) {
+      // Add diff to store
+      diffStore.addDiff(filePath, diffResult.original, diffResult.modified)
+      
+      // Switch to files tab to show diff
+      emit('switch-tab', 'files')
+    }
+  } catch (err) {
+    console.error('Failed to get diff:', err)
   }
 }
 
@@ -202,6 +230,17 @@ onMounted(() => {
   gap: 8px;
   padding: 6px 12px;
   font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.file-item:hover {
+  background: rgba(51, 65, 85, 0.5);
+}
+
+.file-item.selected {
+  background: rgba(59, 130, 246, 0.2);
+  border-left: 2px solid #3b82f6;
 }
 
 .status-badge {

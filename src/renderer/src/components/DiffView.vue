@@ -35,11 +35,27 @@
       <div
         v-for="(change, index) in diffStore.activeDiff.changes"
         :key="index"
-        :class="['diff-line', change.type]"
+        :class="['diff-line', change.type, { hovered: hoveredChangeIndex === index }]"
+        @mouseenter="hoveredChangeIndex = index"
+        @mouseleave="hoveredChangeIndex = null"
       >
         <span class="line-prefix">{{ change.type === 'added' ? '+' : change.type === 'removed' ? '-' : ' ' }}</span>
         <span class="line-numbers">{{ change.lineStart }}-{{ change.lineEnd }}</span>
         <pre class="line-content">{{ change.content }}</pre>
+        <div class="change-actions" v-if="hoveredChangeIndex === index && change.type !== 'unchanged'">
+          <button class="change-accept-btn" @click.stop="handleAcceptChange(change)">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="20,6 9,17 4,12"/>
+            </svg>
+            接受
+          </button>
+          <button class="change-reject-btn" @click.stop="handleRejectChange(change)">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12"/>
+            </svg>
+            拒绝
+          </button>
+        </div>
       </div>
     </div>
 
@@ -76,10 +92,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useDiffStore } from '../stores/diff'
+import { useEditorStore } from '../stores/editor'
 
 const diffStore = useDiffStore()
+const editorStore = useEditorStore()
+const hoveredChangeIndex = ref<number | null>(null)
 
 const addedLines = computed(() => {
   if (!diffStore.activeDiff) return 0
@@ -99,16 +118,136 @@ function fileName(path: string): string {
   return path.split(/[/\\]/).pop() || path
 }
 
+function getAbsolutePath(relativePath: string): string {
+  if (!editorStore.rootPath) {
+    console.warn('[DiffView] rootPath is empty, returning relative path:', relativePath)
+    return relativePath
+  }
+  // 如果已经是绝对路径，直接返回
+  if (/^[a-zA-Z]:[\\/]/.test(relativePath) || relativePath.startsWith('/')) {
+    return relativePath
+  }
+  // 使用正确的路径分隔符拼接
+  const separator = editorStore.rootPath.includes('\\') ? '\\' : '/'
+  const absolutePath = editorStore.rootPath + separator + relativePath.replace(/[\\/]/g, separator)
+  console.log('[DiffView] getAbsolutePath:', { relativePath, rootPath: editorStore.rootPath, absolutePath })
+  return absolutePath
+}
+
 function handleAccept() {
+  // Get file path before accepting (since acceptDiff removes the diff)
+  const filePath = diffStore.activeDiff?.filePath
   const result = diffStore.acceptDiff(diffStore.activeDiffId!)
-  if (result) {
-    // Emit event or call file write
-    window.mimo.file.write(diffStore.activeDiff?.filePath || '', result)
+  if (result && filePath) {
+    // Write the modified content to the file (使用绝对路径)
+    window.mimo.file.write(getAbsolutePath(filePath), result)
   }
 }
 
 function handleReject() {
+  // Get original content before rejecting (since rejectDiff removes the diff)
+  const filePath = diffStore.activeDiff?.filePath
+  const original = diffStore.activeDiff?.original
+  
+  console.log('[DiffView] handleReject:', { filePath, originalLength: original?.length, rootPath: editorStore.rootPath })
+  
+  // Reject the diff (removes from store)
   diffStore.rejectDiff(diffStore.activeDiffId!)
+  
+  // Write the original content back to the file (使用绝对路径)
+  if (filePath && original !== undefined) {
+    const absolutePath = getAbsolutePath(filePath)
+    console.log('[DiffView] Writing original content to:', absolutePath)
+    window.mimo.file.write(absolutePath, original).then(() => {
+      console.log('[DiffView] File write successful')
+    }).catch((err) => {
+      console.error('[DiffView] File write failed:', err)
+    })
+  }
+}
+
+function handleAcceptChange(change: any) {
+  if (!diffStore.activeDiff) return
+  
+  const { filePath } = diffStore.activeDiff
+  const absolutePath = getAbsolutePath(filePath)
+  
+  // 对于添加的行：保留它们（已经在文件中了）
+  // 对于删除的行：从文件中删除它们
+  if (change.type === 'removed') {
+    // 获取当前文件的实际内容
+    getCurrentFileLines().then(currentLines => {
+      const contentToRemove = change.content
+      const newContent = currentLines.filter(line => !contentToRemove.includes(line)).join('\n')
+      window.mimo.file.write(absolutePath, newContent)
+      // 接受变更后，重新获取 diff
+      refreshDiff(filePath)
+    })
+  }
+}
+
+function handleRejectChange(change: any) {
+  if (!diffStore.activeDiff) return
+  
+  const { filePath } = diffStore.activeDiff
+  const absolutePath = getAbsolutePath(filePath)
+  
+  // 对于添加的行：从文件中移除它们
+  // 对于删除的行：将它们恢复到文件中
+  getCurrentFileLines().then(currentLines => {
+    let newContent: string
+    
+    if (change.type === 'added') {
+      // 移除添加的行
+      const linesToRemove = change.content.split('\n')
+      newContent = currentLines.filter(line => !linesToRemove.includes(line)).join('\n')
+    } else if (change.type === 'removed') {
+      // 恢复删除的行到原始位置
+      const linesToRestore = change.content.split('\n')
+      const insertIndex = change.lineStart - 1
+      const newLines = [...currentLines]
+      newLines.splice(insertIndex, 0, ...linesToRestore)
+      newContent = newLines.join('\n')
+    } else {
+      return
+    }
+    
+    window.mimo.file.write(absolutePath, newContent)
+    // 拒绝变更后，重新获取 diff
+    refreshDiff(filePath)
+  })
+}
+
+async function getCurrentFileLines(): Promise<string[]> {
+  if (!diffStore.activeDiff) return []
+  // 从文件系统读取实际内容，而不是使用 store 中的 modified
+  try {
+    const absolutePath = getAbsolutePath(diffStore.activeDiff.filePath)
+    const result = await window.mimo.file.read(absolutePath)
+    return result.content.split('\n')
+  } catch {
+    // 如果读取失败，回退到使用 store 中的内容
+    return diffStore.activeDiff.modified.split('\n')
+  }
+}
+
+async function refreshDiff(filePath: string) {
+  // 重新从 git 获取 diff
+  try {
+    const diffResult = await window.mimo.git.diff(filePath)
+    if (diffResult && diffResult.original !== diffResult.modified) {
+      // 更新 diff store
+      diffStore.addDiff(filePath, diffResult.original, diffResult.modified)
+    } else {
+      // 如果没有差异了，移除 diff
+      const existingDiff = diffStore.activeDiffs.find(d => d.filePath === filePath)
+      if (existingDiff) {
+        diffStore.removeDiff(existingDiff.id)
+      }
+    }
+  } catch (err) {
+    console.error('Failed to refresh diff:', err)
+  }
 }
 </script>
 
@@ -225,6 +364,12 @@ function handleReject() {
   display: flex;
   padding: 0 12px;
   border-left: 3px solid transparent;
+  position: relative;
+  transition: background-color 0.15s;
+}
+
+.diff-line.hovered {
+  background: rgba(51, 65, 85, 0.3);
 }
 
 .diff-line.added {
@@ -265,6 +410,49 @@ function handleReject() {
   white-space: pre-wrap;
   word-break: break-all;
   color: #e2e8f0;
+}
+
+.change-actions {
+  display: flex;
+  gap: 4px;
+  margin-left: 8px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.diff-line.hovered .change-actions {
+  opacity: 1;
+}
+
+.change-accept-btn,
+.change-reject-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 3px;
+  font-size: 10px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.change-accept-btn {
+  background: rgba(52, 211, 153, 0.2);
+  color: #34d399;
+}
+
+.change-accept-btn:hover {
+  background: rgba(52, 211, 153, 0.3);
+}
+
+.change-reject-btn {
+  background: rgba(248, 113, 113, 0.2);
+  color: #f87171;
+}
+
+.change-reject-btn:hover {
+  background: rgba(248, 113, 113, 0.3);
 }
 
 .diff-actions {
