@@ -173,6 +173,7 @@ async function createTerminal() {
   // Write welcome message
   terminal.writeln(`\x1b[36mMiMo Code Terminal\x1b[0m`)
   terminal.writeln(`\x1b[90mWorking directory: ${cwd}\x1b[0m`)
+  terminal.writeln(`\x1b[33m⚠ This is your project directory. Modifications here affect only your project, not the app.\x1b[0m`)
   terminal.writeln('')
 
   // Listen for output
