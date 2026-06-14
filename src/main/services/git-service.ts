@@ -92,15 +92,20 @@ export interface GitDiffResult {
 export async function gitDiff(cwd: string, filePath?: string): Promise<GitDiffResult | null> {
   try {
     if (!filePath) {
+      console.log('gitDiff: no filePath provided')
       return null
     }
+
+    console.log('gitDiff: cwd:', cwd, 'filePath:', filePath)
 
     // 直接从 git 获取原始内容（HEAD 版本）
     let original = ''
     try {
       original = await execGit(['show', `HEAD:${filePath}`], cwd)
-    } catch {
+      console.log('gitDiff: original length:', original.length)
+    } catch (err) {
       // 文件可能是新文件（未跟踪）
+      console.log('gitDiff: failed to get original:', err)
       original = ''
     }
 
@@ -108,13 +113,17 @@ export async function gitDiff(cwd: string, filePath?: string): Promise<GitDiffRe
     let modified = ''
     try {
       modified = fs.readFileSync(path.join(cwd, filePath), 'utf-8')
+      console.log('gitDiff: modified length:', modified.length)
     } catch {
       // 文件可能已被删除
+      console.log('gitDiff: failed to get modified')
       modified = ''
     }
 
+    console.log('gitDiff: are they different?:', original !== modified)
     return { original, modified }
-  } catch {
+  } catch (err) {
+    console.error('gitDiff: unexpected error:', err)
     return null
   }
 }

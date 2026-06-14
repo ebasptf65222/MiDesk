@@ -381,18 +381,6 @@ function handleKeyboard(e: KeyboardEvent) {
       diffStore.clear()
     }
   }
-
-  // Ctrl+Z - Undo
-  if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
-    e.preventDefault()
-    chatStore.undo()
-  }
-
-  // Ctrl+Shift+Z - Redo
-  if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'Z') {
-    e.preventDefault()
-    chatStore.redo()
-  }
 }
 
 onMounted(() => {

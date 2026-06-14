@@ -58,8 +58,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch, nextTick } from 'vue'
+import { computed, ref, watch, nextTick, onUnmounted } from 'vue'
 import { useEditorStore } from '../stores/editor'
+import { useDiffStore } from '../stores/diff'
 import hljs from 'highlight.js/lib/core'
 import javascript from 'highlight.js/lib/languages/javascript'
 import typescript from 'highlight.js/lib/languages/typescript'
@@ -116,9 +117,110 @@ hljs.registerLanguage('toml', ini)
 hljs.registerLanguage('dockerfile', dockerfile)
 
 const editorStore = useEditorStore()
+const diffStore = useDiffStore()
 const textareaEl = ref<HTMLTextAreaElement>()
 const highlightEl = ref<HTMLElement>()
 const editorContentEl = ref<HTMLElement>()
+
+// 自定义撤销栈 - 只记录用户的编辑操作
+interface UndoEntry {
+  content: string
+  selectionStart: number
+  selectionEnd: number
+}
+
+const undoStack = ref<UndoEntry[]>([])
+const redoStack = ref<UndoEntry[]>([])
+const MAX_UNDO_SIZE = 100
+let lastContent = ''
+let isUndoRedoInProgress = false // 防止撤销/重做操作被记录
+
+// 初始化撤销栈
+function initUndoStack() {
+  if (!editorStore.activeFile) return
+  lastContent = editorStore.activeFile.content
+  undoStack.value = []
+  redoStack.value = []
+}
+
+// 记录用户操作
+function recordUndo() {
+  if (!editorStore.activeFile || isUndoRedoInProgress) return
+
+  const currentContent = editorStore.activeFile.content
+  if (currentContent === lastContent) return
+
+  // 保存当前状态到撤销栈
+  undoStack.value.push({
+    content: lastContent,
+    selectionStart: textareaEl.value?.selectionStart || 0,
+    selectionEnd: textareaEl.value?.selectionEnd || 0
+  })
+
+  // 限制栈大小
+  if (undoStack.value.length > MAX_UNDO_SIZE) {
+    undoStack.value.shift()
+  }
+
+  // 清空重做栈
+  redoStack.value = []
+
+  lastContent = currentContent
+}
+
+// 撤销
+function performUndo() {
+  if (!editorStore.activeFile || undoStack.value.length === 0) return
+
+  isUndoRedoInProgress = true
+
+  // 保存当前状态到重做栈
+  redoStack.value.push({
+    content: editorStore.activeFile.content,
+    selectionStart: textareaEl.value?.selectionStart || 0,
+    selectionEnd: textareaEl.value?.selectionEnd || 0
+  })
+
+  // 恢复到上一个状态
+  const prev = undoStack.value.pop()!
+  editorStore.updateContent(editorStore.activeFile.id, prev.content)
+  lastContent = prev.content
+
+  nextTick(() => {
+    if (textareaEl.value) {
+      textareaEl.value.selectionStart = prev.selectionStart
+      textareaEl.value.selectionEnd = prev.selectionEnd
+    }
+    isUndoRedoInProgress = false
+  })
+}
+
+// 重做
+function performRedo() {
+  if (!editorStore.activeFile || redoStack.value.length === 0) return
+
+  isUndoRedoInProgress = true
+
+  // 保存当前状态到撤销栈
+  undoStack.value.push({
+    content: editorStore.activeFile.content,
+    selectionStart: textareaEl.value?.selectionStart || 0,
+    selectionEnd: textareaEl.value?.selectionEnd || 0
+  })
+
+  // 恢复到下一个状态
+  const next = redoStack.value.pop()!
+  editorStore.updateContent(editorStore.activeFile.id, next.content)
+  lastContent = next.content
+
+  nextTick(() => {
+    if (textareaEl.value) {
+      textareaEl.value.selectionStart = next.selectionStart
+      textareaEl.value.selectionEnd = next.selectionEnd
+    }
+    isUndoRedoInProgress = false
+  })
+}
 
 const lineCount = computed(() => {
   if (!editorStore.activeFile) return 0
@@ -200,6 +302,8 @@ function escapeHtml(text: string): string {
 function handleInput(e: Event) {
   if (!editorStore.activeFile) return
   const target = e.target as HTMLTextAreaElement
+  // 记录用户操作（在更新内容之前）
+  recordUndo()
   editorStore.updateContent(editorStore.activeFile.id, target.value)
 }
 
@@ -234,6 +338,20 @@ function handleKeydown(e: KeyboardEvent) {
   if ((e.metaKey || e.ctrlKey) && e.key === 'd') {
     e.preventDefault()
     selectSameWord()
+  }
+
+  // Cmd/Ctrl + Z to undo (local editor undo only)
+  if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+    e.preventDefault()
+    e.stopPropagation() // 阻止事件冒泡到全局监听器
+    performUndo()
+  }
+
+  // Cmd/Ctrl + Shift + Z to redo (local editor redo only)
+  if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'Z') {
+    e.preventDefault()
+    e.stopPropagation() // 阻止事件冒泡到全局监听器
+    performRedo()
   }
 }
 
@@ -297,11 +415,27 @@ async function handleSave() {
 watch(
   () => editorStore.activeFileId,
   () => {
+    // 切换文件时重置撤销栈
+    initUndoStack()
     nextTick(() => {
       if (textareaEl.value) {
         textareaEl.value.focus()
       }
     })
+  }
+)
+
+// 监听文件内容变化，检测 AI 修改
+watch(
+  () => editorStore.activeFile?.content,
+  (newContent, oldContent) => {
+    if (!editorStore.activeFile || isUndoRedoInProgress) return
+    
+    // 如果内容变化不是由用户输入引起的（即 AI 修改），重置撤销栈
+    if (newContent !== lastContent && oldContent !== lastContent) {
+      // AI 修改了代码，重置撤销栈
+      initUndoStack()
+    }
   }
 )
 </script>

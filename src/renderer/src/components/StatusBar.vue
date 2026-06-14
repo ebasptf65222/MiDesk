@@ -20,12 +20,12 @@
       </span>
     </div>
     <div class="status-right">
-      <button class="status-btn" @click="handleUndo" title="撤销 (Ctrl+Z)" :disabled="chatStore.isStreaming">
+      <button class="status-btn" @click="handleUndo" title="撤销 AI 操作 (基于 Git)" :disabled="chatStore.isStreaming">
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M3 10h10a5 5 0 015 5v2M3 10l5 5M3 10l5-5"/>
         </svg>
       </button>
-      <button class="status-btn" @click="handleRedo" title="重做 (Ctrl+Shift+Z)" :disabled="chatStore.isStreaming">
+      <button class="status-btn" @click="handleRedo" title="重做 AI 操作 (基于 Git)" :disabled="chatStore.isStreaming">
         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M21 10H11a5 5 0 00-5 5v2M21 10l-5 5M21 10l-5-5"/>
         </svg>
@@ -51,11 +51,15 @@ const editorStore = useEditorStore()
 const chatStore = useChatStore()
 
 function handleUndo() {
-  chatStore.undo()
+  if (confirm('确定要撤销 AI 上次操作吗？此操作会基于 Git 回退更改。')) {
+    chatStore.undo()
+  }
 }
 
 function handleRedo() {
-  chatStore.redo()
+  if (confirm('确定要重做 AI 操作吗？此操作会重新应用之前的更改。')) {
+    chatStore.redo()
+  }
 }
 const gitBranch = ref('')
 const cursorLine = ref(1)
