@@ -11,7 +11,9 @@ export function setupAutoUpdater(mainWindow: BrowserWindow): void {
       return {
         available: !!result,
         version: result?.updateInfo.version || null,
-        releaseDate: result?.updateInfo.releaseDate || null
+        releaseDate: result?.updateInfo.releaseDate || null,
+        releaseNotes: result?.updateInfo.releaseNotes || null,
+        files: result?.updateInfo.files || []
       }
     } catch (err) {
       return { available: false, error: String(err) }
@@ -31,10 +33,15 @@ export function setupAutoUpdater(mainWindow: BrowserWindow): void {
     autoUpdater.quitAndInstall()
   })
 
+  ipcMain.handle('mimo:update:getVersion', () => {
+    return autoUpdater.currentVersion
+  })
+
   autoUpdater.on('update-available', (info) => {
     mainWindow.webContents.send('mimo:update:available', {
       version: info.version,
-      releaseDate: info.releaseDate
+      releaseDate: info.releaseDate,
+      releaseNotes: info.releaseNotes
     })
   })
 
@@ -51,7 +58,9 @@ export function setupAutoUpdater(mainWindow: BrowserWindow): void {
     mainWindow.webContents.send('mimo:update:downloaded')
   })
 
-  autoUpdater.on('error', () => {})
+  autoUpdater.on('error', (err) => {
+    mainWindow.webContents.send('mimo:update:error', String(err))
+  })
 
   autoUpdater.checkForUpdates().catch(() => {})
 }
