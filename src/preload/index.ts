@@ -156,8 +156,9 @@ const mimoAPI = {
     check: () => electronAPI.ipcRenderer.invoke('mimo:update:check'),
     download: () => electronAPI.ipcRenderer.invoke('mimo:update:download'),
     install: () => electronAPI.ipcRenderer.invoke('mimo:update:install'),
-    onAvailable: (callback: (info: { version: string; releaseDate: string }) => void) => {
-      const handler = (_event: Electron.IpcRendererEvent, info: { version: string; releaseDate: string }) => {
+    getVersion: () => electronAPI.ipcRenderer.invoke('mimo:update:getVersion'),
+    onAvailable: (callback: (info: { version: string; releaseDate: string; releaseNotes?: string }) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, info: { version: string; releaseDate: string; releaseNotes?: string }) => {
         callback(info)
       }
       electronAPI.ipcRenderer.on('mimo:update:available', handler)
@@ -174,6 +175,13 @@ const mimoAPI = {
       const handler = () => callback()
       electronAPI.ipcRenderer.on('mimo:update:downloaded', handler)
       return () => electronAPI.ipcRenderer.removeListener('mimo:update:downloaded', handler)
+    },
+    onError: (callback: (error: string) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, error: string) => {
+        callback(error)
+      }
+      electronAPI.ipcRenderer.on('mimo:update:error', handler)
+      return () => electronAPI.ipcRenderer.removeListener('mimo:update:error', handler)
     }
   }
 }
