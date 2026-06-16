@@ -26,6 +26,17 @@
     </div>
 
     <div class="titlebar-right">
+      <div class="update-trigger" @click="toggleUpdateMenu">
+        <button class="action-btn" title="检查更新">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+            <polyline points="7,10 12,15 17,10"/>
+            <line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+        </button>
+        <span class="update-badge" v-if="updateStore.updateInfo.available"></span>
+      </div>
+      
       <button class="action-btn" @click="$emit('openFile')" title="打开文件 (Ctrl+O)">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
           <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
@@ -55,20 +66,29 @@
         </button>
       </div>
     </div>
+    
+    <UpdateMenu :isOpen="isUpdateMenuOpen" @close="isUpdateMenuOpen = false" />
   </div>
 </template>
 
 <script setup lang="ts">
-defineProps<{
+import { ref } from 'vue'
+import { useUpdateStore } from '../stores/update'
+import UpdateMenu from './UpdateMenu.vue'
+
+const props = defineProps<{
   activeTab: string
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
   (e: 'changeTab', tabId: string): void
   (e: 'toggleSidebar'): void
   (e: 'openFile'): void
   (e: 'openSettings'): void
 }>()
+
+const updateStore = useUpdateStore()
+const isUpdateMenuOpen = ref(false)
 
 const tabs = [
   { id: 'files', label: '文件', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14,2 14,8 20,8"/></svg>' },
@@ -79,6 +99,10 @@ const tabs = [
   { id: 'skills', label: '技能', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>' },
   { id: 'settings', label: '设置', icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/></svg>' }
 ]
+
+function toggleUpdateMenu() {
+  isUpdateMenuOpen.value = !isUpdateMenuOpen.value
+}
 
 function minimize() {
   window.electron?.ipcRenderer.invoke('window:minimize')
@@ -191,6 +215,21 @@ function close() {
   align-items: center;
   gap: 4px;
   -webkit-app-region: no-drag;
+}
+
+.update-trigger {
+  position: relative;
+}
+
+.update-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  width: 8px;
+  height: 8px;
+  background: var(--accent-color);
+  border-radius: 50%;
+  border: 2px solid var(--bg-secondary);
 }
 
 .action-btn {
