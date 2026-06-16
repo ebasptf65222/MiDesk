@@ -30,6 +30,14 @@
           <path d="M21 10H11a5 5 0 00-5 5v2M21 10l-5 5M21 10l-5-5"/>
         </svg>
       </button>
+      <span class="status-item update-indicator" v-if="updateStore.updateInfo.available" title="有新版本可用">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+          <polyline points="7,10 12,15 17,10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        更新可用
+      </span>
       <span class="status-item">UTF-8</span>
       <span class="status-item">LF</span>
       <span class="status-item" v-if="editorStore.activeFile">
@@ -46,9 +54,11 @@
 import { ref, computed, watch, onMounted } from 'vue'
 import { useEditorStore } from '../stores/editor'
 import { useChatStore } from '../stores/chat'
+import { useUpdateStore } from '../stores/update'
 
 const editorStore = useEditorStore()
 const chatStore = useChatStore()
+const updateStore = useUpdateStore()
 
 function handleUndo() {
   if (confirm('确定要撤销 AI 上次操作吗？此操作会基于 Git 回退更改。')) {
@@ -153,5 +163,14 @@ onMounted(() => {
 .status-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+
+.update-indicator {
+  color: var(--accent-color);
+  cursor: pointer;
+}
+
+.update-indicator:hover {
+  color: var(--accent-hover);
 }
 </style>
