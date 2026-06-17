@@ -27,7 +27,7 @@
         </div>
         
         <div class="update-notes" v-if="updateStore.updateInfo.releaseNotes">
-          <div class="notes-content" v-html="updateStore.updateInfo.releaseNotes"></div>
+          <div class="notes-content">{{ updateStore.updateInfo.releaseNotes }}</div>
         </div>
         
         <div class="download-progress" v-if="updateStore.isDownloading">
@@ -78,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useUpdateStore } from '../stores/update'
 
 const props = defineProps<{
@@ -92,6 +92,11 @@ const emit = defineEmits<{
 const updateStore = useUpdateStore()
 const currentVersion = ref('0.1.0')
 
+let unsubAvailable: (() => void) | undefined
+let unsubProgress: (() => void) | undefined
+let unsubDownloaded: (() => void) | undefined
+let unsubError: (() => void) | undefined
+
 onMounted(async () => {
   try {
     const version = await window.mimo.update.getVersion()
@@ -100,7 +105,7 @@ onMounted(async () => {
     console.error('Failed to get version:', err)
   }
   
-  window.mimo.update.onAvailable((info) => {
+  unsubAvailable = window.mimo.update.onAvailable((info) => {
     updateStore.setUpdateInfo({
       available: true,
       version: info.version,
@@ -109,20 +114,27 @@ onMounted(async () => {
     })
   })
   
-  window.mimo.update.onProgress((progress) => {
+  unsubProgress = window.mimo.update.onProgress((progress) => {
     updateStore.setProgress(progress)
   })
   
-  window.mimo.update.onDownloaded(() => {
+  unsubDownloaded = window.mimo.update.onDownloaded(() => {
     updateStore.setDownloaded(true)
     updateStore.setDownloading(false)
   })
   
-  window.mimo.update.onError((error) => {
+  unsubError = window.mimo.update.onError((error) => {
     updateStore.setError(error)
     updateStore.setChecking(false)
     updateStore.setDownloading(false)
   })
+})
+
+onBeforeUnmount(() => {
+  unsubAvailable?.()
+  unsubProgress?.()
+  unsubDownloaded?.()
+  unsubError?.()
 })
 
 async function handleCheck() {
@@ -131,7 +143,9 @@ async function handleCheck() {
   
   try {
     const result = await window.mimo.update.check()
-    if (!result.available) {
+    if (result.error) {
+      updateStore.setError(result.error)
+    } else if (!result.available) {
       updateStore.setUpdateInfo({
         available: false,
         version: null,
